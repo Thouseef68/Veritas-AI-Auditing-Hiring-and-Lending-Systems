@@ -1,0 +1,30 @@
+# Secrets & Environment variables
+.env
+.env*.local
+.env.*
+*.env
+nvapi-*
+
+# Dependencies
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+env/
+venv/
+.pytest_cache/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
