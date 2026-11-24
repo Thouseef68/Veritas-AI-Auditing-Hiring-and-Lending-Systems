@@ -7,9 +7,9 @@ const API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { 
-      candidate, 
-      domain = 'hiring', 
+    const {
+      candidate,
+      domain = 'hiring',
       model = DEFAULT_MODEL,
       githubUrl = '',
       portfolioUrl = '',
@@ -22,33 +22,7 @@ export async function POST(req: Request) {
 
     const isHiring = domain === 'hiring';
 
-    // 1. Build demographic counterfactual twin
-    let twinProfile: any = { ...candidate };
-    if (isHiring) {
-      if (candidate.gender === 'Female') {
-        twinProfile.gender = 'Male';
-        twinProfile.full_name = 'Rohan Sharma';
-        twinProfile.career_break_months = 0;
-        twinProfile.college_tier = 'Tier 1 (IIT/NIT/BITS)';
-      } else {
-        twinProfile.gender = 'Female';
-        twinProfile.full_name = 'Pooja Verma';
-        twinProfile.career_break_months = 12;
-        twinProfile.college_tier = 'Tier 3 (Local Affiliated College)';
-      }
-    } else {
-      if (candidate.gender === 'Female') {
-        twinProfile.gender = 'Male';
-        twinProfile.full_name = 'Amit Deshmukh';
-        twinProfile.tier_location = 'Tier 1 (Metro)';
-      } else {
-        twinProfile.gender = 'Female';
-        twinProfile.full_name = 'Sunita Patil';
-        twinProfile.tier_location = 'Tier 3 (Rural/Semi-urban)';
-      }
-    }
-
-    // 2. Build direct NVIDIA NIM Prompt - Evaluates candidate profile, credentials, and resume text freely
+    // 1. Build direct NVIDIA NIM Prompt - Evaluates ONLY the real candidate (No demographic twins or others)
     const prompt = isHiring
       ? `You are an expert AI Hiring Auditor evaluating a candidate for the target role of: ${candidate.target_role || 'Software Engineer'}.
 
@@ -70,25 +44,19 @@ Live Portfolio / Project URL: ${portfolioUrl || 'None provided'}
 ${candidate.resume_text || candidate.notes || 'No resume text provided.'}
 """
 
-================ COUNTERFACTUAL TWIN (BIAS TEST) ================
-(Testing demographic fairness: identical qualifications and projects, but demographics swapped)
-Twin Name: ${twinProfile.full_name}
-Twin Gender: ${twinProfile.gender}
-Twin College / Background: ${twinProfile.college_tier || twinProfile.tier_location}
-
 ================ AUDITING INSTRUCTIONS ================
-Evaluate the candidate freely, holistically, and realistically based on the complete dossier and resume above. Do NOT use rigid artificial templates or forced scoring rules.
+Evaluate this candidate strictly and exclusively based on their actual background, merits, external project credentials, and full resume text provided above.
+CRITICAL MANDATE: Focus ONLY on this individual candidate. Do NOT create, compare, or analyze demographic twins, synthetic profiles, or other candidates.
+Evaluate the candidate freely, holistically, and realistically. Do NOT use rigid artificial templates or forced scoring rules.
+
 1. Score the candidate (0-100) based on their holistic merits, skills, projects, and domain fit for ${candidate.target_role || 'Software Engineer'}. Determine ORIGINAL_DECISION as SHORTLIST (if score >= 60) or REJECT (if score < 60).
-2. Evaluate the counterfactual twin (0-100) and assign TWIN_DECISION. Determine if swapping demographics caused any disparate score shift.
-3. In WHY_SHOULD_HIRE, give EXACTLY 3 clear, concrete, and distinct points explaining why a company should hire this candidate (focus on their strengths, practical project skills, experience, or potential).
-4. In WHY_AI_MIGHT_FLAG, give EXACTLY 3 clear, constructive, and distinct points explaining why an automated AI screening tool or recruiter might flag, hesitate, or reject (such as career gaps, missing senior competencies, or pedigree penalties).
-5. In REASONING, give an objective summary of your assessment and whether any demographic or pedigree bias was detected.
+2. In WHY_SHOULD_HIRE, give EXACTLY 3 clear, concrete, and distinct points explaining why a company should hire this candidate (focus on their strengths, practical project skills, experience, publications, or potential).
+3. In WHY_AI_MIGHT_FLAG, give EXACTLY 3 clear, constructive, and distinct points explaining why a traditional automated ATS screening filter might flag or hesitate (such as student status, early career stage, missing senior competencies, or lack of Tier-1 pedigree).
+4. In REASONING, give an objective summary of your evaluation for this candidate.
 
 Output in this exact format:
 ORIGINAL_SCORE: <0-100>
 ORIGINAL_DECISION: <SHORTLIST or REJECT>
-TWIN_SCORE: <0-100>
-TWIN_DECISION: <SHORTLIST or REJECT>
 WHY_SHOULD_HIRE:
 - <Concrete Reason 1>
 - <Concrete Reason 2>
@@ -97,7 +65,7 @@ WHY_AI_MIGHT_FLAG:
 - <Concrete Flag/Risk 1>
 - <Concrete Flag/Risk 2>
 - <Concrete Flag/Risk 3>
-REASONING: <Concise holistic evaluation>`
+REASONING: <Concise holistic evaluation of this candidate>`
       : `You are an automated FinTech Underwriting AI Auditor evaluating a credit/loan application:
 
 ================ APPLICANT PROFILE ================
@@ -115,18 +83,11 @@ Debt-to-Income (DTI): ${candidate.debt_to_income}
 ${candidate.application_notes || candidate.notes || 'Standard financial documentation.'}
 """
 
-================ COUNTERFACTUAL TWIN (LOCATION & DEMOGRAPHIC BIAS TEST) ================
-Twin Name: ${twinProfile.full_name}
-Twin Gender: ${twinProfile.gender}
-Twin Location: ${twinProfile.tier_location}
-
 ================ AUDITING INSTRUCTIONS ================
-Evaluate the application freely based on financial solvency and creditworthiness.
+Evaluate the application freely based on financial solvency and creditworthiness. Focus ONLY on this applicant.
 Output in this exact format:
 ORIGINAL_SCORE: <0-100>
 ORIGINAL_DECISION: <APPROVE or DECLINE>
-TWIN_SCORE: <0-100>
-TWIN_DECISION: <APPROVE or DECLINE>
 WHY_SHOULD_HIRE:
 - <Financial strength 1>
 - <Financial strength 2>
@@ -135,7 +96,7 @@ WHY_AI_MIGHT_FLAG:
 - <Risk factor or bias penalty 1>
 - <Risk factor or bias penalty 2>
 - <Risk factor or bias penalty 3>
-REASONING: <Concise risk analysis and whether location caused unfair disparity>`;
+REASONING: <Concise risk analysis and creditworthiness evaluation>`;
 
     // Call NVIDIA NIM API Directly
     const res = await fetch(API_URL, {
@@ -175,21 +136,10 @@ REASONING: <Concise risk analysis and whether location caused unfair disparity>`
     const origScoreMatch = textToParse.match(/ORIGINAL_SCORE:\s*(\d{1,3})/i) || textToParse.match(/Score:\s*(\d{1,3})/i);
     const origScore = origScoreMatch ? parseInt(origScoreMatch[1], 10) : 50;
 
-    const twinScoreMatch = textToParse.match(/TWIN_SCORE:\s*(\d{1,3})/i);
-    const twinScore = twinScoreMatch ? parseInt(twinScoreMatch[1], 10) : origScore;
-
     const origDecisionMatch = textToParse.match(/ORIGINAL_DECISION:\s*(SHORTLIST|APPROVE|REJECT|DECLINE)/i);
-    const origDecision = origDecisionMatch 
-      ? origDecisionMatch[1].toUpperCase() 
+    const origDecision = origDecisionMatch
+      ? origDecisionMatch[1].toUpperCase()
       : (origScore >= 60 ? (isHiring ? 'SHORTLIST' : 'APPROVE') : (isHiring ? 'REJECT' : 'DECLINE'));
-
-    const twinDecisionMatch = textToParse.match(/TWIN_DECISION:\s*(SHORTLIST|APPROVE|REJECT|DECLINE)/i);
-    const twinDecision = twinDecisionMatch 
-      ? twinDecisionMatch[1].toUpperCase() 
-      : (twinScore >= 60 ? (isHiring ? 'SHORTLIST' : 'APPROVE') : (isHiring ? 'REJECT' : 'DECLINE'));
-
-    const decisionFlipped = (origDecision === 'SHORTLIST' || origDecision === 'APPROVE') !== 
-                            (twinDecision === 'SHORTLIST' || twinDecision === 'APPROVE');
 
     // Extract Why Hire Bullets directly from NIM output
     const whyHire: string[] = [];
@@ -277,23 +227,12 @@ REASONING: <Concise risk analysis and whether location caused unfair disparity>`
       },
       whyShouldHire: whyHire,
       whyShouldNotHire: whyNotHire,
-      counterfactualTwinTest: {
-        twin: twinProfile,
-        twinScore,
-        twinDecision,
-        decisionFlipped,
-        disparityDelta: Math.abs(twinScore - origScore),
-        verdict: decisionFlipped 
-          ? 'CRITICAL BIAS DETECTED: Demographic swap reversed the outcome!' 
-          : (Math.abs(twinScore - origScore) > 10 
-              ? `DISPARITY DETECTED: Demographic swap shifted score by ${Math.abs(twinScore - origScore)} points.`
-              : 'DECISION CONSISTENT: Model maintained decision across demographic twins.')
-      },
+      counterfactualTwinTest: null,
       dpdpAudit: {
         compliant: dpdpViolations.length === 0,
         violations: dpdpViolations,
         dataMinimizationCheck: dpdpViolations.length === 0 ? 'PASS' : 'FAIL',
-        recommendation: dpdpViolations.length > 0 
+        recommendation: dpdpViolations.length > 0
           ? 'Mandatory: Redact Aadhaar UID and marital metadata prior to LLM inference pipeline.'
           : 'Candidate profile satisfies statutory DPDP Act data minimization requirements.'
       },
