@@ -2,29 +2,87 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { 
-      action = 'all', // 'github' | 'website' | 'company' | 'resume_parse' | 'all'
-      githubUrl = '',
-      portfolioUrl = '',
-      companyName = '',
-      targetRole = 'Senior Software Engineer',
-      resumeText = ''
-    } = body;
+    let action = 'all';
+    let githubUrl = '';
+    let portfolioUrl = '';
+    let companyName = '';
+    let targetRole = 'Senior Software Engineer';
+    let resumeText = '';
+    let fileName = '';
+
+    const contentType = req.headers.get('content-type') || '';
+
+    // Handle multipart form-data (file upload)
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await req.formData();
+      action = (formData.get('action') as string) || 'resume_parse';
+      githubUrl = (formData.get('githubUrl') as string) || '';
+      portfolioUrl = (formData.get('portfolioUrl') as string) || '';
+      companyName = (formData.get('companyName') as string) || '';
+      targetRole = (formData.get('targetRole') as string) || 'Senior Software Engineer';
+
+      const file = formData.get('file') as File | null;
+      if (file) {
+        fileName = file.name;
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+          try {
+            const { PDFParse } = require('pdf-parse');
+            const arrayBuf = await file.arrayBuffer();
+            const uint8 = new Uint8Array(arrayBuf);
+            const parser = new PDFParse({ data: uint8 });
+            await parser.load();
+            const parsedRes = await parser.getText();
+            resumeText = parsedRes.text || '';
+            await parser.destroy();
+          } catch (pdfErr) {
+            console.error('PDF parsing error:', pdfErr);
+            // Fallback: try reading as text
+            const rawText = await file.text();
+            // Filter out binary pdf bytecode lines
+            resumeText = rawText
+              .replace(/%PDF-[\d.]+/g, '')
+              .replace(/<<[\s\S]*?>>/g, '')
+              .replace(/stream[\s\S]*?endstream/g, '')
+              .replace(/[^\x20-\x7E\n\r]/g, ' ')
+              .trim();
+          }
+        } else {
+          resumeText = await file.text();
+        }
+      }
+    } else {
+      const body = await req.json();
+      action = body.action || 'all';
+      githubUrl = body.githubUrl || '';
+      portfolioUrl = body.portfolioUrl || '';
+      companyName = body.companyName || '';
+      targetRole = body.targetRole || 'Senior Software Engineer';
+      resumeText = body.resumeText || '';
+      fileName = body.fileName || '';
+    }
 
     const results: any = {};
 
     // 1. Resume Parsing & Entity Extraction
     if (action === 'resume_parse' || action === 'all') {
       if (resumeText && resumeText.trim().length > 0) {
-        // Simple intelligent NER extraction
-        const aadhaarMatch = resumeText.match(/\b\d{4}\s\d{4}\s\d{4}\b|\b\d{12}\b/);
-        const panMatch = resumeText.match(/\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b/i);
-        const phoneMatch = resumeText.match(/(?:\+91[\s-]?)?[6789]\d{9}\b/);
-        const emailMatch = resumeText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-        
+        // Filter out binary PDF artifacts
+        const cleanResume = resumeText
+          .replace(/%PDF-[\d.]+/g, '')
+          .replace(/\b[0-9]+\s+[0-9]+\s+obj\b/g, '')
+          .replace(/endobj/g, '')
+          .replace(/xref[\s\S]*?trailer/g, '')
+          .replace(/<<[\s\S]*?>>/g, '')
+          .trim();
+
+        // Detect PII exposures
+        const aadhaarMatch = cleanResume.match(/\b\d{4}\s\d{4}\s\d{4}\b|\b\d{12}\b/);
+        const panMatch = cleanResume.match(/\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b/i);
+        const phoneMatch = cleanResume.match(/(?:\+91[\s-]?)?[6789]\d{9}\b/);
+        const emailMatch = cleanResume.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+
         // Detect career break
-        const careerBreakMatch = resumeText.match(/(?:break|gap|pause|maternity|sabbatical|caregiving)\s*(?:of)?\s*(\d+)?\s*(?:month|year|yr)/i);
+        const careerBreakMatch = cleanResume.match(/(?:break|gap|pause|maternity|sabbatical|caregiving)\s*(?:of)?\s*(\d+)?\s*(?:month|year|yr)/i);
         let parsedBreakMonths = 0;
         if (careerBreakMatch) {
           parsedBreakMonths = parseInt(careerBreakMatch[1]) || 6;
@@ -32,16 +90,41 @@ export async function POST(req: Request) {
         }
 
         // Detect years of experience
-        const expMatch = resumeText.match(/(\d+)\+?\s*(?:years?|yrs?)\s*(?:of)?\s*(?:experience|exp)/i);
+        const expMatch = cleanResume.match(/(\d+)\+?\s*(?:years?|yrs?)\s*(?:of)?\s*(?:experience|exp)/i);
         const parsedExp = expMatch ? parseFloat(expMatch[1]) : 4;
 
         // Detect potential gender indicators
-        let inferredGender = 'Not Disclosed';
-        if (/\b(maternity|she|her|ms|mrs)\b/i.test(resumeText)) inferredGender = 'Female';
-        else if (/\b(he|him|mr)\b/i.test(resumeText)) inferredGender = 'Male';
+        let inferredGender = 'Male';
+        if (/\b(maternity|she|her|ms|mrs)\b/i.test(cleanResume)) inferredGender = 'Female';
+        else if (/\b(he|him|mr)\b/i.test(cleanResume)) inferredGender = 'Male';
+
+        // Extract clean candidate name
+        let extractedName = 'Applicant';
+        if (fileName && fileName.trim().length > 0) {
+          // e.g. Thouseef_F_Resume1.pdf -> Thouseef F
+          const nameFromFilename = fileName
+            .replace(/\.[a-zA-Z0-9]+$/, '')
+            .replace(/[-_]?(resume|cv|profile|\d+)[-_]?/gi, ' ')
+            .replace(/[_-]/g, ' ')
+            .trim();
+          if (nameFromFilename.length > 2) {
+            extractedName = nameFromFilename;
+          }
+        }
+
+        // If filename didn't give good name, look at first valid non-symbol line of text
+        if (extractedName === 'Applicant') {
+          const lines = cleanResume.split('\n')
+            .map(l => l.trim())
+            .filter(l => l.length > 2 && !l.startsWith('%') && !l.includes('obj') && !l.startsWith('/'));
+          if (lines.length > 0 && lines[0].length < 35) {
+            extractedName = lines[0];
+          }
+        }
 
         results.resumeAnalysis = {
-          extractedName: resumeText.split('\n')[0].trim().substring(0, 30) || 'Applicant',
+          extractedName,
+          cleanText: cleanResume.length > 20 ? cleanResume : resumeText,
           extractedExperience: parsedExp,
           inferredGender,
           careerBreakDetected: parsedBreakMonths > 0,
@@ -53,9 +136,9 @@ export async function POST(req: Request) {
             panValue: panMatch ? panMatch[0] : null,
             phoneFound: !!phoneMatch,
             emailFound: !!emailMatch,
-            maritalStatusFound: /(?:marital status|married|single|divorced)/i.test(resumeText)
+            maritalStatusFound: /(?:marital status|married|single|divorced)/i.test(cleanResume)
           },
-          summary: `Extracted candidate profile with approx. ${parsedExp} years experience. ${
+          summary: `Extracted candidate profile: ${extractedName} with approx. ${parsedExp} years experience. ${
             parsedBreakMonths > 0 ? `Detected ${parsedBreakMonths}-month career break.` : 'No career gaps detected.'
           }`
         };
@@ -65,7 +148,6 @@ export async function POST(req: Request) {
     // 2. GitHub Profile & Repository Auditing
     if (action === 'github' || action === 'all') {
       if (githubUrl && githubUrl.trim().length > 0) {
-        // Clean URL to extract username or repo
         let clean = githubUrl.replace(/^https?:\/\/(www\.)?github\.com\//i, '').replace(/\/$/, '');
         const parts = clean.split('/');
         const username = parts[0] || 'developer';
@@ -73,10 +155,9 @@ export async function POST(req: Request) {
 
         let githubData: any = null;
         try {
-          // Attempt fetch from GitHub public API with short timeout
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 3500);
-          
+
           const ghEndpoint = repoName 
             ? `https://api.github.com/repos/${username}/${repoName}`
             : `https://api.github.com/users/${username}/repos?sort=updated&per_page=6`;
@@ -91,11 +172,9 @@ export async function POST(req: Request) {
             githubData = await ghRes.json();
           }
         } catch (e) {
-          // Fallback gracefully if offline, rate limited or aborted
           githubData = null;
         }
 
-        // Analyze signals & algorithmic bias implications
         const isLiveFetched = githubData !== null;
         const reposCount = Array.isArray(githubData) ? githubData.length : (githubData?.id ? 1 : 4);
         const topLanguages = Array.isArray(githubData) 
@@ -142,7 +221,6 @@ export async function POST(req: Request) {
           clearTimeout(timeout);
           isLive = headRes.ok || headRes.status < 400;
         } catch (e) {
-          // If CORS or offline, fallback to simulation
           isLive = true;
           responseTimeMs = 185;
         }
@@ -169,7 +247,6 @@ export async function POST(req: Request) {
     if (action === 'company' || action === 'all') {
       if (companyName && companyName.trim().length > 0) {
         const isFAANG = /(google|amazon|meta|apple|microsoft|netflix)/i.test(companyName);
-        const isTier1Indian = /(flipkart|swiggy|zomato|cred|razorpay|uber|ola)/i.test(companyName);
         const isServiceOrEarly = /(tcs|infosys|wipro|cognizant|hcl|accenture|capgemini|startup|freelance|stealth)/i.test(companyName);
 
         let pedigreePenaltyRisk = 'LOW';

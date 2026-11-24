@@ -205,36 +205,32 @@ export default function Home() {
     setResumeLoading(true);
 
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        let textContent = event.target?.result as string || '';
-        
-        const res = await fetch('/api/external-audit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'resume_parse',
-            resumeText: textContent
-          })
-        });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('action', 'resume_parse');
 
-        const data = await res.json();
-        if (data.resumeAnalysis) {
-          setApplicant(prev => ({
-            ...prev,
-            full_name: data.resumeAnalysis.extractedName || prev.full_name,
-            years_exp: data.resumeAnalysis.extractedExperience || prev.years_exp,
-            career_break_months: data.resumeAnalysis.careerBreakMonths || prev.career_break_months,
-            gender: data.resumeAnalysis.inferredGender !== 'Not Disclosed' ? data.resumeAnalysis.inferredGender : prev.gender,
-            notes: textContent.length > 500 ? textContent.slice(0, 500) + '...' : textContent
-          }));
-        }
-        setResumeLoading(false);
-      };
+      const res = await fetch('/api/external-audit', {
+        method: 'POST',
+        body: formData
+      });
 
-      reader.readAsText(file);
+      const data = await res.json();
+      if (data.resumeAnalysis) {
+        const cleanText = data.resumeAnalysis.cleanText || '';
+        setApplicant(prev => ({
+          ...prev,
+          full_name: data.resumeAnalysis.extractedName && data.resumeAnalysis.extractedName !== 'Applicant'
+            ? data.resumeAnalysis.extractedName
+            : prev.full_name,
+          years_exp: data.resumeAnalysis.extractedExperience || prev.years_exp,
+          career_break_months: data.resumeAnalysis.careerBreakMonths || prev.career_break_months,
+          gender: data.resumeAnalysis.inferredGender !== 'Not Disclosed' ? data.resumeAnalysis.inferredGender : prev.gender,
+          notes: cleanText.length > 700 ? cleanText.slice(0, 700) + '...' : (cleanText || prev.notes)
+        }));
+      }
+      setResumeLoading(false);
     } catch (err) {
-      console.error('Error reading resume file:', err);
+      console.error('Error uploading resume file:', err);
       setResumeLoading(false);
     }
   };
