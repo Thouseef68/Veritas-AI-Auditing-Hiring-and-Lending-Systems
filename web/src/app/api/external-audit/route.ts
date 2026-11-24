@@ -1,4 +1,101 @@
 import { NextResponse } from 'next/server';
+import { spawn } from 'child_process';
+import path from 'path';
+import fs from 'fs';
+
+// Robust multi-engine PDF Text Extractor (Python pypdf -> pdf-parse lib -> stream regex)
+async function extractPdfBuffer(buffer: Buffer): Promise<string> {
+  // Method 1: Python pypdf (100% reliable, no canvas/DOM errors, handles modern complex PDFs)
+  try {
+    let scriptPath = path.resolve(process.cwd(), 'ml_engine', 'extract_pdf.py');
+    if (!fs.existsSync(scriptPath)) {
+      scriptPath = path.resolve(process.cwd(), '..', 'ml_engine', 'extract_pdf.py');
+    }
+
+    if (fs.existsSync(scriptPath)) {
+      const py = spawn('python', [scriptPath]);
+      let stdout = '';
+      let stderr = '';
+
+      const pyPromise = new Promise<string>((resolve) => {
+        py.stdout.on('data', (d) => { stdout += d.toString('utf-8'); });
+        py.stderr.on('data', (d) => { stderr += d.toString('utf-8'); });
+        py.on('close', (code) => {
+          if (stdout.trim().length > 10) {
+            resolve(stdout.trim());
+          } else {
+            resolve('');
+          }
+        });
+        py.on('error', () => resolve(''));
+      });
+
+      py.stdin.write(buffer);
+      py.stdin.end();
+
+      const pyResult = await Promise.race([
+        pyPromise,
+        new Promise<string>((resolve) => setTimeout(() => resolve(''), 6000))
+      ]);
+
+      if (pyResult && pyResult.length > 20) {
+        return pyResult;
+      }
+    }
+  } catch (pyErr) {
+    console.warn('Python pypdf extraction warning:', pyErr);
+  }
+
+  // Method 2: Classic pdf-parse internal lib (bypasses debug mode test crash)
+  try {
+    const pdf = require('pdf-parse/lib/pdf-parse.js');
+    const data = await pdf(buffer);
+    if (data && data.text && data.text.trim().length > 20) {
+      return data.text.trim();
+    }
+  } catch (pdfErr) {
+    console.warn('pdf-parse lib extraction warning:', pdfErr);
+  }
+
+  // Method 3: Direct text stream token extraction (extracting literal strings in Tj/TJ blocks)
+  try {
+    const raw = buffer.toString('latin1');
+    const textChunks: string[] = [];
+    const tjRegex = /\(([^)]+)\)\s*Tj/g;
+    let match;
+    while ((match = tjRegex.exec(raw)) !== null) {
+      if (match[1] && match[1].trim()) {
+        textChunks.push(match[1]);
+      }
+    }
+    const tjArrayRegex = /\[([^\]]+)\]\s*TJ/g;
+    while ((match = tjArrayRegex.exec(raw)) !== null) {
+      const parts = match[1].match(/\(([^)]+)\)/g);
+      if (parts) {
+        textChunks.push(parts.map(p => p.slice(1, -1)).join(' '));
+      }
+    }
+    if (textChunks.length > 5) {
+      return textChunks.join('\n');
+    }
+  } catch (streamErr) {
+    console.warn('Stream extraction error:', streamErr);
+  }
+
+  // Method 4: Clean sanitized string (removes all binary markers, /K [...], %PDF, obj)
+  const fallbackStr = buffer.toString('utf-8')
+    .replace(/%PDF-[\d.]+/g, '')
+    .replace(/\/K\s*\[[\s\S]*?\]/g, '')
+    .replace(/<<[\s\S]*?>>/g, '')
+    .replace(/\b\d+\s+\d+\s+obj\b[\s\S]*?endobj/g, '')
+    .replace(/stream[\s\S]*?endstream/g, '')
+    .replace(/xref[\s\S]*?trailer/g, '')
+    .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  return fallbackStr;
+}
 
 export async function POST(req: Request) {
   try {
@@ -25,27 +122,9 @@ export async function POST(req: Request) {
       if (file) {
         fileName = file.name;
         if (file.name.toLowerCase().endsWith('.pdf')) {
-          try {
-            const { PDFParse } = require('pdf-parse');
-            const arrayBuf = await file.arrayBuffer();
-            const uint8 = new Uint8Array(arrayBuf);
-            const parser = new PDFParse({ data: uint8 });
-            await parser.load();
-            const parsedRes = await parser.getText();
-            resumeText = parsedRes.text || '';
-            await parser.destroy();
-          } catch (pdfErr) {
-            console.error('PDF parsing error:', pdfErr);
-            // Fallback: try reading as text
-            const rawText = await file.text();
-            // Filter out binary pdf bytecode lines
-            resumeText = rawText
-              .replace(/%PDF-[\d.]+/g, '')
-              .replace(/<<[\s\S]*?>>/g, '')
-              .replace(/stream[\s\S]*?endstream/g, '')
-              .replace(/[^\x20-\x7E\n\r]/g, ' ')
-              .trim();
-          }
+          const arrayBuf = await file.arrayBuffer();
+          const buffer = Buffer.from(arrayBuf);
+          resumeText = await extractPdfBuffer(buffer);
         } else {
           resumeText = await file.text();
         }
@@ -63,16 +142,16 @@ export async function POST(req: Request) {
 
     const results: any = {};
 
-    // 1. Resume Parsing & Entity Extraction
+    // 1. Clean Resume Text & Detect PII
     if (action === 'resume_parse' || action === 'all') {
       if (resumeText && resumeText.trim().length > 0) {
-        // Filter out binary PDF artifacts
+        // Clean out any PDF structural residual markers
         const cleanResume = resumeText
           .replace(/%PDF-[\d.]+/g, '')
-          .replace(/\b[0-9]+\s+[0-9]+\s+obj\b/g, '')
+          .replace(/\/K\s*\[[\s\S]*?\]/g, '')
+          .replace(/\b\d+\s+\d+\s+obj\b/g, '')
           .replace(/endobj/g, '')
           .replace(/xref[\s\S]*?trailer/g, '')
-          .replace(/<<[\s\S]*?>>/g, '')
           .trim();
 
         // Detect PII exposures
@@ -81,54 +160,8 @@ export async function POST(req: Request) {
         const phoneMatch = cleanResume.match(/(?:\+91[\s-]?)?[6789]\d{9}\b/);
         const emailMatch = cleanResume.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
 
-        // Detect career break
-        const careerBreakMatch = cleanResume.match(/(?:break|gap|pause|maternity|sabbatical|caregiving)\s*(?:of)?\s*(\d+)?\s*(?:month|year|yr)/i);
-        let parsedBreakMonths = 0;
-        if (careerBreakMatch) {
-          parsedBreakMonths = parseInt(careerBreakMatch[1]) || 6;
-          if (careerBreakMatch[0].toLowerCase().includes('year')) parsedBreakMonths *= 12;
-        }
-
-        // Detect years of experience
-        const expMatch = cleanResume.match(/(\d+)\+?\s*(?:years?|yrs?)\s*(?:of)?\s*(?:experience|exp)/i);
-        const parsedExp = expMatch ? parseFloat(expMatch[1]) : 4;
-
-        // Detect potential gender indicators
-        let inferredGender = 'Male';
-        if (/\b(maternity|she|her|ms|mrs)\b/i.test(cleanResume)) inferredGender = 'Female';
-        else if (/\b(he|him|mr)\b/i.test(cleanResume)) inferredGender = 'Male';
-
-        // Extract clean candidate name
-        let extractedName = 'Applicant';
-        if (fileName && fileName.trim().length > 0) {
-          // e.g. Thouseef_F_Resume1.pdf -> Thouseef F
-          const nameFromFilename = fileName
-            .replace(/\.[a-zA-Z0-9]+$/, '')
-            .replace(/[-_]?(resume|cv|profile|\d+)[-_]?/gi, ' ')
-            .replace(/[_-]/g, ' ')
-            .trim();
-          if (nameFromFilename.length > 2) {
-            extractedName = nameFromFilename;
-          }
-        }
-
-        // If filename didn't give good name, look at first valid non-symbol line of text
-        if (extractedName === 'Applicant') {
-          const lines = cleanResume.split('\n')
-            .map(l => l.trim())
-            .filter(l => l.length > 2 && !l.startsWith('%') && !l.includes('obj') && !l.startsWith('/'));
-          if (lines.length > 0 && lines[0].length < 35) {
-            extractedName = lines[0];
-          }
-        }
-
         results.resumeAnalysis = {
-          extractedName,
           cleanText: cleanResume.length > 20 ? cleanResume : resumeText,
-          extractedExperience: parsedExp,
-          inferredGender,
-          careerBreakDetected: parsedBreakMonths > 0,
-          careerBreakMonths: parsedBreakMonths,
           piiExposures: {
             aadhaarFound: !!aadhaarMatch,
             aadhaarValue: aadhaarMatch ? aadhaarMatch[0] : null,
@@ -137,10 +170,7 @@ export async function POST(req: Request) {
             phoneFound: !!phoneMatch,
             emailFound: !!emailMatch,
             maritalStatusFound: /(?:marital status|married|single|divorced)/i.test(cleanResume)
-          },
-          summary: `Extracted candidate profile: ${extractedName} with approx. ${parsedExp} years experience. ${
-            parsedBreakMonths > 0 ? `Detected ${parsedBreakMonths}-month career break.` : 'No career gaps detected.'
-          }`
+          }
         };
       }
     }

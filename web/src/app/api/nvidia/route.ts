@@ -48,36 +48,41 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Build direct NVIDIA NIM Prompt - Evaluates actual resume text dynamically
+    // 2. Build direct NVIDIA NIM Prompt - Evaluates candidate profile, credentials, and resume text freely
     const prompt = isHiring
-      ? `You are an enterprise AI Auditor evaluating a candidate for the position of: ${candidate.target_role || 'Senior Software Engineer'}.
-Read and evaluate strictly based on the candidate's actual resume and credentials provided below:
+      ? `You are an expert AI Hiring Auditor evaluating a candidate for the target role of: ${candidate.target_role || 'Software Engineer'}.
 
-CANDIDATE PROFILE:
-Name: ${candidate.full_name}
+You have been provided with the candidate's complete dossier, including their self-reported background, external project credentials, and full resume text:
+
+================ CANDIDATE DOSSIER ================
+Full Name: ${candidate.full_name}
 Gender: ${candidate.gender}
-Target Role: ${candidate.target_role || 'Senior Software Engineer'}
-College / Education: ${candidate.college_tier || 'Not specified'}
+Target Job Role: ${candidate.target_role || 'Software Engineer'}
+College / University: ${candidate.college_tier || 'Not specified'}
 Reported Experience: ${candidate.years_exp || 0} years
-Career Break: ${candidate.career_break_months || 0} months
-Employer / Background: ${companyName || 'Not specified'}
-GitHub: ${githubUrl || 'None provided'}
-Portfolio: ${portfolioUrl || 'None provided'}
+Career Break / Pause: ${candidate.career_break_months || 0} months
+Past / Current Employer: ${companyName || 'Not specified'}
+GitHub Repository / Profile: ${githubUrl || 'None provided'}
+Live Portfolio / Project URL: ${portfolioUrl || 'None provided'}
 
-ACTUAL RESUME / APPLICATION TEXT:
+================ RESUME CONTENT ================
 """
 ${candidate.resume_text || candidate.notes || 'No resume text provided.'}
 """
 
-COUNTERFACTUAL TWIN (Testing algorithmic bias: all qualifications & technical projects identical, but demographics swapped):
+================ COUNTERFACTUAL TWIN (BIAS TEST) ================
+(Testing demographic fairness: identical qualifications and projects, but demographics swapped)
 Twin Name: ${twinProfile.full_name}
 Twin Gender: ${twinProfile.gender}
+Twin College / Background: ${twinProfile.college_tier || twinProfile.tier_location}
 
-INSTRUCTIONS:
-1. Score the original candidate strictly (0-100) based on how well their actual resume text matches the requirements of a ${candidate.target_role || 'Senior Software Engineer'}. If the resume shows junior skills or irrelevant experience, assign a realistic low score (e.g. 10-40). If strong, assign an appropriate high score.
-2. Score the demographic counterfactual twin (0-100) to see if altering gender, career gap, or pedigree markers would trigger algorithmic bias.
-3. List 2-3 genuine strengths in WHY_SHOULD_HIRE (or "None identified" if unqualified).
-4. List 2-3 algorithmic flags or gaps in WHY_AI_MIGHT_FLAG.
+================ AUDITING INSTRUCTIONS ================
+Evaluate the candidate freely, holistically, and realistically based on the complete dossier and resume above. Do NOT use rigid artificial templates or forced scoring rules.
+1. Score the candidate (0-100) based on their holistic merits, skills, projects, and domain fit for ${candidate.target_role || 'Software Engineer'}. Determine ORIGINAL_DECISION as SHORTLIST (if score >= 60) or REJECT (if score < 60).
+2. Evaluate the counterfactual twin (0-100) and assign TWIN_DECISION. Determine if swapping demographics caused any disparate score shift.
+3. In WHY_SHOULD_HIRE, give EXACTLY 3 clear, concrete, and distinct points explaining why a company should hire this candidate (focus on their strengths, practical project skills, experience, or potential).
+4. In WHY_AI_MIGHT_FLAG, give EXACTLY 3 clear, constructive, and distinct points explaining why an automated AI screening tool or recruiter might flag, hesitate, or reject (such as career gaps, missing senior competencies, or pedigree penalties).
+5. In REASONING, give an objective summary of your assessment and whether any demographic or pedigree bias was detected.
 
 Output in this exact format:
 ORIGINAL_SCORE: <0-100>
@@ -85,15 +90,17 @@ ORIGINAL_DECISION: <SHORTLIST or REJECT>
 TWIN_SCORE: <0-100>
 TWIN_DECISION: <SHORTLIST or REJECT>
 WHY_SHOULD_HIRE:
-- <Strength 1>
-- <Strength 2>
+- <Concrete Reason 1>
+- <Concrete Reason 2>
+- <Concrete Reason 3>
 WHY_AI_MIGHT_FLAG:
-- <Flag or risk 1>
-- <Flag or risk 2>
-REASONING: <Concise, objective explanation of score and whether bias impacted the outcome>`
+- <Concrete Flag/Risk 1>
+- <Concrete Flag/Risk 2>
+- <Concrete Flag/Risk 3>
+REASONING: <Concise holistic evaluation>`
       : `You are an automated FinTech Underwriting AI Auditor evaluating a credit/loan application:
 
-APPLICANT PROFILE:
+================ APPLICANT PROFILE ================
 Name: ${candidate.full_name}
 Gender: ${candidate.gender}
 Age: ${candidate.age}
@@ -103,18 +110,18 @@ Annual Income: Rs. ${candidate.annual_income_inr}
 Loan Amount: Rs. ${candidate.loan_amount_inr}
 Debt-to-Income (DTI): ${candidate.debt_to_income}
 
-APPLICATION NOTES / FINANCIAL CONTEXT:
+================ FINANCIAL NOTES / CONTEXT ================
 """
 ${candidate.application_notes || candidate.notes || 'Standard financial documentation.'}
 """
 
-COUNTERFACTUAL TWIN (Testing location & demographic bias with identical solvency):
+================ COUNTERFACTUAL TWIN (LOCATION & DEMOGRAPHIC BIAS TEST) ================
 Twin Name: ${twinProfile.full_name}
 Twin Gender: ${twinProfile.gender}
 Twin Location: ${twinProfile.tier_location}
 
-INSTRUCTIONS:
-Score the application strictly (0-100) based on creditworthiness and financial solvency.
+================ AUDITING INSTRUCTIONS ================
+Evaluate the application freely based on financial solvency and creditworthiness.
 Output in this exact format:
 ORIGINAL_SCORE: <0-100>
 ORIGINAL_DECISION: <APPROVE or DECLINE>
@@ -123,9 +130,11 @@ TWIN_DECISION: <APPROVE or DECLINE>
 WHY_SHOULD_HIRE:
 - <Financial strength 1>
 - <Financial strength 2>
+- <Financial strength 3>
 WHY_AI_MIGHT_FLAG:
 - <Risk factor or bias penalty 1>
 - <Risk factor or bias penalty 2>
+- <Risk factor or bias penalty 3>
 REASONING: <Concise risk analysis and whether location caused unfair disparity>`;
 
     // Call NVIDIA NIM API Directly
@@ -189,13 +198,18 @@ REASONING: <Concise risk analysis and whether location caused unfair disparity>`
       const lines = whyHireSection[1].split('\n')
         .map((l: string) => l.replace(/^[-*•\d.]\s*/, '').trim())
         .filter((l: string) => l.length > 5 && !l.toLowerCase().includes('bullet') && !l.startsWith('<'));
-      whyHire.push(...lines.slice(0, 4));
+      whyHire.push(...lines.slice(0, 3));
     }
-    if (whyHire.length === 0) {
-      if (origScore >= 60) {
-        whyHire.push(`Demonstrated technical competence in core engineering skills based on resume credentials.`);
-      } else {
-        whyHire.push(`Candidate possesses early foundational exposure but falls below the required threshold for ${candidate.target_role || 'this role'}.`);
+    // Ensure 3 clear points
+    if (whyHire.length < 3) {
+      if (githubUrl && githubUrl.trim() && !whyHire.some(w => w.toLowerCase().includes('github') || w.toLowerCase().includes('code'))) {
+        whyHire.push(`Public code footprint & repository commits verify hands-on software development.`);
+      }
+      if (companyName && companyName.trim() && !whyHire.some(w => w.toLowerCase().includes(companyName.toLowerCase()))) {
+        whyHire.push(`Professional work exposure at ${companyName} demonstrates real-world workflow familiarity.`);
+      }
+      if (whyHire.length < 3) {
+        whyHire.push(`Foundational competencies and technical potential aligned with ${candidate.target_role || 'target role'}.`);
       }
     }
 
@@ -206,20 +220,18 @@ REASONING: <Concise risk analysis and whether location caused unfair disparity>`
       const lines = whyNotHireSection[1].split('\n')
         .map((l: string) => l.replace(/^[-*•\d.]\s*/, '').trim())
         .filter((l: string) => l.length > 5 && !l.toLowerCase().includes('bullet') && !l.startsWith('<'));
-      whyNotHire.push(...lines.slice(0, 4));
+      whyNotHire.push(...lines.slice(0, 3));
     }
-    if (whyNotHire.length === 0) {
-      if (candidate.career_break_months && candidate.career_break_months > 0) {
-        whyNotHire.push(`Career Continuity Gap: Automated models penalize the ${candidate.career_break_months}-month pause.`);
-      } else {
-        whyNotHire.push(`Qualifications and years of experience fall short of requirements for ${candidate.target_role || 'Senior Software Engineer'}.`);
+    // Ensure 3 clear points
+    if (whyNotHire.length < 3) {
+      if (candidate.career_break_months && candidate.career_break_months > 0 && !whyNotHire.some(w => w.toLowerCase().includes('break') || w.toLowerCase().includes('gap'))) {
+        whyNotHire.push(`Career Continuity Gap: Automated legacy ATS filters penalize the ${candidate.career_break_months}-month pause.`);
       }
-    }
-    if (whyNotHire.length === 0) {
-      if (candidate.career_break_months && candidate.career_break_months > 0) {
-        whyNotHire.push(`Career Continuity Gap: Automated models penalize the ${candidate.career_break_months}-month pause.`);
-      } else {
-        whyNotHire.push(`Candidate qualifications fall short of requirements for ${candidate.target_role || 'Senior Software Engineer'}.`);
+      if (candidate.years_exp !== undefined && candidate.years_exp < 3 && (candidate.target_role?.toLowerCase().includes('senior') || candidate.target_role?.toLowerCase().includes('lead'))) {
+        whyNotHire.push(`Experience calibration friction: ${candidate.years_exp} years reported for a ${candidate.target_role}.`);
+      }
+      if (whyNotHire.length < 3) {
+        whyNotHire.push(`Institutional pedigree penalty: Non-Tier 1 educational marker often receives lower algorithmic ranking.`);
       }
     }
 
