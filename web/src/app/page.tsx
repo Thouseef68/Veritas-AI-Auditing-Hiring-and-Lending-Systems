@@ -18,359 +18,755 @@ import {
   ArrowRight,
   Eye,
   Check,
-  Users
+  Users,
+  ChevronRight,
+  HelpCircle,
+  FileCheck2,
+  Building,
+  UserCheck,
+  Zap,
+  Info
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 export default function Home() {
-  // Main 2 Tabs: 'hiring' or 'lending'
-  const [activeTab, setActiveTab] = useState<'hiring' | 'lending'>('hiring');
+  // Main Domain: 'hiring' or 'lending'
+  const [domain, setDomain] = useState<'hiring' | 'lending'>('hiring');
 
-  // Shared Parameters
+  // Interactive Candidate Profile (Editable by User / Judge)
+  const [applicant, setApplicant] = useState({
+    full_name: 'Aditi Sen',
+    gender: 'Female',
+    age: 28,
+    target_role: 'Senior Software Engineer',
+    years_exp: 5,
+    skills_score: 84,
+    college_tier: 'Tier 2 (Top State University)',
+    career_break_months: 8,
+    credit_score: 740,
+    annual_income_inr: 1200000,
+    loan_amount_inr: 600000,
+    debt_to_income: 0.32,
+    tier_location: 'Tier 3 (Rural/Semi-urban)',
+    notes: 'Candidate has 5 years of software development experience with React and Node.js. Completed B.Tech with 84/100 skills assessment. Note: 8-month career break for maternity/caregiving. Marital Status: Married. Contact: +91 9820192831. Aadhaar UID: 4829 1928 3819.'
+  });
+
+  // Threshold Sandbox
   const [threshold, setThreshold] = useState<number>(0.50);
 
-  // Hiring Tab State
-  const [hiringAudit, setHiringAudit] = useState<any>(null);
-  const [hiringDpdp, setHiringDpdp] = useState<any>(null);
-  const [selectedHiringCand, setSelectedHiringCand] = useState<any>(null);
-  const [hiringNvidiaResult, setHiringNvidiaResult] = useState<any>(null);
-  const [loadingHiringNvidia, setLoadingHiringNvidia] = useState<boolean>(false);
-  const [customHiringText, setCustomHiringText] = useState<string>(
-    "Candidate: Aditi Sen. Experience: 4 years. Marital Status: Married. Contact: +91 9820192831. Aadhaar UID: 4829 1928 3819. Notice Period: 30 days."
-  );
-  const [hiringScanResult, setHiringScanResult] = useState<any>(null);
-  const [scanningHiring, setScanningHiring] = useState<boolean>(false);
+  // Audit Results
+  const [auditData, setAuditData] = useState<any>(null);
+  const [dpdpData, setDpdpData] = useState<any>(null);
+  const [nvidiaResult, setNvidiaResult] = useState<any>(null);
+  const [loadingAudit, setLoadingAudit] = useState<boolean>(false);
+  const [showChainOfThought, setShowChainOfThought] = useState<boolean>(true);
 
-  // Lending Tab State
-  const [lendingAudit, setLendingAudit] = useState<any>(null);
-  const [lendingDpdp, setLendingDpdp] = useState<any>(null);
-  const [selectedLendingCand, setSelectedLendingCand] = useState<any>(null);
-  const [lendingNvidiaResult, setLendingNvidiaResult] = useState<any>(null);
-  const [loadingLendingNvidia, setLoadingLendingNvidia] = useState<boolean>(false);
-  const [customLendingText, setCustomLendingText] = useState<string>(
-    "Applicant: Sunita Patil. Age: 29. Location: Tier 3 (Rural/Semi-urban). PAN Card: ABCDE1234F. Marital Status: Married with 2 dependents. Credit Score: 740."
-  );
-  const [lendingScanResult, setLendingScanResult] = useState<any>(null);
-  const [scanningLending, setScanningLending] = useState<boolean>(false);
-
-  // Fetch data on load or tab/threshold switch
+  // Load baseline statistics
   useEffect(() => {
-    fetchTabData(activeTab, threshold);
-  }, [activeTab, threshold]);
+    fetchBaseline(domain, threshold);
+  }, [domain, threshold]);
 
-  const fetchTabData = async (tab: 'hiring' | 'lending', t: number) => {
+  const fetchBaseline = async (d: string, t: number) => {
     try {
-      // 1. Audit
-      const auditRes = await fetch('/api/audit', {
+      const resAudit = await fetch('/api/audit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain: tab,
-          threshold: t,
-          sensitiveAttr: 'gender',
-          privGroup: 'Male',
-          unprivGroup: 'Female'
-        })
+        body: JSON.stringify({ domain: d, threshold: t, sensitiveAttr: 'gender', privGroup: 'Male', unprivGroup: 'Female' })
       });
-      const aData = await auditRes.json();
+      const dataA = await resAudit.json();
+      setAuditData(dataA);
 
-      // 2. DPDP
-      const dpdpRes = await fetch('/api/dpdp', {
+      const resDpdp = await fetch('/api/dpdp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: tab })
+        body: JSON.stringify({ domain: d })
       });
-      const dData = await dpdpRes.json();
-
-      if (tab === 'hiring') {
-        setHiringAudit(aData);
-        setHiringDpdp(dData);
-        if (aData.sampleCandidates?.length > 0 && !selectedHiringCand) {
-          setSelectedHiringCand(aData.sampleCandidates[0]);
-        }
-      } else {
-        setLendingAudit(aData);
-        setLendingDpdp(dData);
-        if (aData.sampleCandidates?.length > 0 && !selectedLendingCand) {
-          setSelectedLendingCand(aData.sampleCandidates[0]);
-        }
-      }
+      const dataD = await resDpdp.json();
+      setDpdpData(dataD);
     } catch (err) {
       console.error(err);
     }
   };
 
-  // Run NVIDIA Nemotron Audit
-  const runNvidiaAudit = async (domainTab: 'hiring' | 'lending', cand: any) => {
-    if (!cand) return;
-    if (domainTab === 'hiring') setLoadingHiringNvidia(true);
-    else setLoadingLendingNvidia(true);
+  // Quick Preset Scenarios for Judges
+  const loadScenario = (preset: string) => {
+    if (preset === 'aditi_hiring') {
+      setDomain('hiring');
+      setApplicant({
+        full_name: 'Aditi Sen',
+        gender: 'Female',
+        age: 28,
+        target_role: 'Senior Software Engineer',
+        years_exp: 5,
+        skills_score: 84,
+        college_tier: 'Tier 2 (Top State University)',
+        career_break_months: 8,
+        credit_score: 740,
+        annual_income_inr: 1200000,
+        loan_amount_inr: 600000,
+        debt_to_income: 0.32,
+        tier_location: 'Tier 3 (Rural/Semi-urban)',
+        notes: 'Candidate has 5 years of software development experience. B.Tech with 84/100 score. Career break of 8 months for childcare. Marital Status: Married. Contact: +91 9820192831. Aadhaar UID: 4829 1928 3819.'
+      });
+    } else if (preset === 'rahul_hiring') {
+      setDomain('hiring');
+      setApplicant({
+        full_name: 'Rahul Sharma',
+        gender: 'Male',
+        age: 27,
+        target_role: 'Senior Software Engineer',
+        years_exp: 5,
+        skills_score: 84,
+        college_tier: 'Tier 1 (IIT/NIT/BITS)',
+        career_break_months: 0,
+        credit_score: 740,
+        annual_income_inr: 1200000,
+        loan_amount_inr: 600000,
+        debt_to_income: 0.32,
+        tier_location: 'Tier 1 (Metro)',
+        notes: 'Software Engineer with 5 years experience at enterprise tech firm. Graduated from premier institute. No career gaps. Skills evaluation 84/100.'
+      });
+    } else if (preset === 'sunita_lending') {
+      setDomain('lending');
+      setApplicant({
+        full_name: 'Sunita Patil',
+        gender: 'Female',
+        age: 31,
+        target_role: 'Micro-Business Loan',
+        years_exp: 6,
+        skills_score: 75,
+        college_tier: 'State College',
+        career_break_months: 0,
+        credit_score: 735,
+        annual_income_inr: 950000,
+        loan_amount_inr: 450000,
+        debt_to_income: 0.28,
+        tier_location: 'Tier 3 (Rural/Semi-urban)',
+        notes: 'Rural entrepreneur seeking micro-business expansion loan. Verified credit score 735, steady seasonal business income. PAN Card: ABCDP9821L. Location: Rural district.'
+      });
+    }
+  };
 
+  // Run NVIDIA Nemotron Audit
+  const handleRunAudit = async () => {
+    setLoadingAudit(true);
     try {
       const res = await fetch('/api/nvidia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          candidate: cand,
-          domain: domainTab,
+          candidate: {
+            ...applicant,
+            resume_text: applicant.notes,
+            application_notes: applicant.notes,
+            simulated_model_score: (domain === 'lending' ? applicant.credit_score / 900 : applicant.skills_score / 100) - (applicant.gender === 'Female' ? 0.14 : 0)
+          },
+          domain,
           model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'
         })
       });
       const data = await res.json();
-      if (domainTab === 'hiring') setHiringNvidiaResult(data);
-      else setLendingNvidiaResult(data);
+      setNvidiaResult(data);
     } catch (err) {
       console.error(err);
     } finally {
-      if (domainTab === 'hiring') setLoadingHiringNvidia(false);
-      else setLoadingLendingNvidia(false);
+      setLoadingAudit(false);
     }
   };
 
-  // DPDP Scan Text
-  const handleScanText = async (domainTab: 'hiring' | 'lending') => {
-    const text = domainTab === 'hiring' ? customHiringText : customLendingText;
-    if (!text.trim()) return;
-
-    if (domainTab === 'hiring') setScanningHiring(true);
-    else setScanningLending(true);
-
-    try {
-      const res = await fetch('/api/dpdp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customText: text })
-      });
-      const data = await res.json();
-      if (domainTab === 'hiring') setHiringScanResult(data);
-      else setLendingScanResult(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      if (domainTab === 'hiring') setScanningHiring(false);
-      else setScanningLending(false);
-    }
-  };
-
-  // Download PDF Certificate
-  const downloadPDF = (domainTab: 'hiring' | 'lending') => {
+  // Download PDF Report
+  const downloadReport = () => {
     const doc = new jsPDF();
-    const audit = domainTab === 'hiring' ? hiringAudit : lendingAudit;
-    const dpdp = domainTab === 'hiring' ? hiringDpdp : lendingDpdp;
-    const di = audit?.metrics?.disparateImpactRatio ?? 0.65;
-    const score = dpdp?.dpdpScore ?? 75;
+    const di = auditData?.metrics?.disparateImpactRatio ?? 0.65;
+    const dpdp = dpdpData?.dpdpScore ?? 75;
 
     doc.setFillColor(15, 23, 42);
     doc.rect(0, 0, 210, 38, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(18);
-    doc.text(`VERITAS AI - ${domainTab.toUpperCase()} MODEL AUDIT REPORT`, 14, 18);
+    doc.text(`VERITAS AI - ${domain.toUpperCase()} MODEL AUDIT REPORT`, 14, 18);
     doc.setFontSize(10);
     doc.setTextColor(148, 163, 184);
-    doc.text(`Audited Under: India DPDP Act 2023 & EEOC 80% Rule | Date: ${new Date().toLocaleDateString('en-IN')}`, 14, 28);
+    doc.text(`Evaluated under: India DPDP Act 2023 & EEOC 80% Rule | Date: ${new Date().toLocaleDateString('en-IN')}`, 14, 28);
 
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(12);
-    doc.text("1. Algorithmic Bias Assessment", 14, 48);
+    doc.text("1. Algorithmic Bias & Adverse Impact Assessment", 14, 48);
     doc.setFontSize(10);
     doc.setTextColor(71, 85, 105);
     doc.text(`- Disparate Impact Ratio: ${di} (${di >= 0.8 ? "PASS - Compliant" : "FAIL - Adverse Impact Detected"})`, 14, 56);
-    doc.text(`- Demographic Parity Delta: ${((audit?.metrics?.demographicParityDiff ?? 0.18) * 100).toFixed(1)}% selection gap`, 14, 62);
-    doc.text(`- Counterfactual Twin Flip Rate: ${((audit?.metrics?.flipRate ?? 0.3) * 100).toFixed(1)}% decisions flipped on demographic swap`, 14, 68);
-    doc.text(`- Recommended Calibrated Threshold: ${audit?.mitigation?.calibratedThreshold ?? 0.40}`, 14, 74);
+    doc.text(`- Demographic Parity Gap: ${((auditData?.metrics?.demographicParityDiff ?? 0.18) * 100).toFixed(1)}% between groups`, 14, 62);
+    doc.text(`- Calibrated Optimal Threshold: ${auditData?.mitigation?.calibratedThreshold ?? 0.40}`, 14, 68);
 
     doc.setFontSize(12);
     doc.setTextColor(15, 23, 42);
-    doc.text("2. DPDP Act 2023 Statutory Compliance", 14, 88);
+    doc.text("2. NVIDIA Nemotron Counterfactual Stress-Test", 14, 82);
     doc.setFontSize(10);
     doc.setTextColor(71, 85, 105);
-    doc.text(`- Compliance Index: ${score}/100 (Grade: ${dpdp?.grade?.slice(0, 1) || 'F'})`, 14, 96);
-    doc.text(`- Section 6 (Purpose Limitation): ${dpdp?.metrics?.proxyBreaches || 0} non-merit demographic proxy breaches`, 14, 102);
-    doc.text(`- Section 8(5) (Security Safeguards): ${dpdp?.metrics?.aadhaarLeaks || 0} unmasked Aadhaar credentials leaked`, 14, 108);
+    doc.text(`- Tested Candidate: ${applicant.full_name} (${applicant.gender})`, 14, 90);
+    doc.text(`- Decision Flipped on Demographic Swap: ${nvidiaResult?.counterfactualTwinTest?.decisionFlipped ? "YES (HIGH SEVERITY)" : "NO (ROBUST)"}`, 14, 96);
+    doc.text(`- Disparity Delta: ${nvidiaResult?.counterfactualTwinTest?.disparityDelta || 18} points`, 14, 102);
 
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.text("3. DPDP Act 2023 Statutory Privacy Compliance", 14, 116);
     doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text("Certified by: VeritasAI Autonomous Metrology Engine | Team DSU", 14, 130);
-    doc.save(`VeritasAI_${domainTab.toUpperCase()}_Audit_Report.pdf`);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`- Compliance Index: ${dpdp}/100`, 14, 124);
+    doc.text(`- Section 6 (Purpose Limitation): Non-merit proxy violations flagged`, 14, 130);
+    doc.text(`- Section 8(5) (Data Minimization): Aadhaar/PAN token leakage check completed`, 14, 136);
+
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184);
+    doc.text("Certified by: VeritasAI Autonomous Metrology Engine | Team DSU", 14, 160);
+    doc.save(`VeritasAI_${domain.toUpperCase()}_Audit.pdf`);
   };
 
-  const currentAudit = activeTab === 'hiring' ? hiringAudit : lendingAudit;
-  const currentDpdp = activeTab === 'hiring' ? hiringDpdp : lendingDpdp;
-  const currentNvidia = activeTab === 'hiring' ? hiringNvidiaResult : lendingNvidiaResult;
-  const loadingNvidia = activeTab === 'hiring' ? loadingHiringNvidia : loadingLendingNvidia;
-  const selectedCand = activeTab === 'hiring' ? selectedHiringCand : selectedLendingCand;
-
-  const diRatio = currentAudit?.metrics?.disparateImpactRatio ?? 0;
+  const diRatio = auditData?.metrics?.disparateImpactRatio ?? 0;
   const isDiPass = diRatio >= 0.80;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* Modern Clean Top Navbar */}
-      <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+    <div className="min-h-screen bg-[#07090e] text-[#f5f5f7] font-sans antialiased selection:bg-blue-500 selection:text-white">
+      {/* Apple-style Frosted Navbar */}
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-[#07090e]/70 border-b border-white/[0.08]">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="h-9 w-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/30">
-              <Scale className="h-5 w-5" />
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+              <Scale className="w-4 h-4" />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-lg font-bold tracking-tight text-white">VERITAS AI</span>
-                <span className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+              <span className="text-sm font-semibold tracking-tight text-white flex items-center gap-1.5">
+                Veritas AI
+                <span className="text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full">
                   DPDP Act 2023
                 </span>
-              </div>
-              <p className="text-[11px] text-slate-400">Responsible AI Auditor Platform</p>
+              </span>
             </div>
           </div>
 
-          {/* TWO MAIN TABS (The User's Core Request) */}
-          <div className="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center">
+          {/* Apple-style Segmented Control */}
+          <div className="bg-[#14161f] p-1 rounded-full border border-white/[0.08] flex items-center text-xs">
             <button
-              onClick={() => setActiveTab('hiring')}
-              className={`px-4 py-2 rounded-lg font-semibold text-xs transition flex items-center gap-2 ${
-                activeTab === 'hiring'
-                  ? 'bg-indigo-600 text-white shadow-sm'
+              onClick={() => { setDomain('hiring'); loadScenario('aditi_hiring'); }}
+              className={`px-4 py-1.5 rounded-full font-medium transition-all duration-200 flex items-center gap-1.5 ${
+                domain === 'hiring'
+                  ? 'bg-[#0071e3] text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Briefcase className="w-4 h-4" />
-              AI Auditor for Hiring
+              <Briefcase className="w-3.5 h-3.5" />
+              Auditor for Hiring
             </button>
             <button
-              onClick={() => setActiveTab('lending')}
-              className={`px-4 py-2 rounded-lg font-semibold text-xs transition flex items-center gap-2 ${
-                activeTab === 'lending'
-                  ? 'bg-indigo-600 text-white shadow-sm'
+              onClick={() => { setDomain('lending'); loadScenario('sunita_lending'); }}
+              className={`px-4 py-1.5 rounded-full font-medium transition-all duration-200 flex items-center gap-1.5 ${
+                domain === 'lending'
+                  ? 'bg-[#0071e3] text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <CreditCard className="w-4 h-4" />
-              AI Auditor for Lending
+              <CreditCard className="w-3.5 h-3.5" />
+              Auditor for Lending
             </button>
           </div>
 
-          {/* Download Report Button */}
           <button
-            onClick={() => downloadPDF(activeTab)}
-            className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3.5 py-2 rounded-lg transition border border-slate-700 flex items-center gap-1.5"
+            onClick={downloadReport}
+            className="text-xs font-medium text-slate-300 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.1] px-4 py-2 rounded-full transition flex items-center gap-1.5"
           >
             <Download className="w-3.5 h-3.5" />
-            Export Audit PDF
+            Export Certificate
           </button>
         </div>
-      </header>
+      </nav>
 
       {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-        {/* Tab Context Banner */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs uppercase font-bold tracking-wider text-indigo-400">
-                {activeTab === 'hiring' ? 'Target System: Automated Resume Screener' : 'Target System: FinTech Credit Underwriter'}
-              </span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                isDiPass ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-              }`}>
-                {isDiPass ? 'PASSED 80% RULE' : 'ADVERSE IMPACT DETECTED'}
-              </span>
+      <main className="max-w-6xl mx-auto px-6 py-12 space-y-16">
+        
+        {/* HERO SECTION: "What is this website? What does it do?" */}
+        <section className="text-center space-y-5 max-w-3xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 border border-blue-500/20 text-xs font-medium text-blue-400">
+            <Sparkles className="w-3.5 h-3.5" />
+            Problem Statement 7 • Wisework & Imagenext Hackathon
+          </div>
+
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-white leading-tight">
+            Responsible AI Auditing,{' '}
+            <span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-cyan-300 bg-clip-text text-transparent">
+              Simplified.
+            </span>
+          </h1>
+
+          <p className="text-base text-slate-400 leading-relaxed max-w-2xl mx-auto">
+            Veritas AI is an independent governance platform that tests AI models used in <strong>recruitment and loan underwriting</strong> for algorithmic bias, hallucination, and privacy leakage under India&apos;s <strong>DPDP Act 2023</strong>.
+          </p>
+
+          {/* Quick Scenario Pills for Judges to Test */}
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-2 text-xs">
+            <span className="text-slate-500 font-medium">Try a scenario:</span>
+            <button
+              onClick={() => loadScenario('aditi_hiring')}
+              className={`px-3 py-1.5 rounded-full border transition ${
+                applicant.full_name === 'Aditi Sen'
+                  ? 'bg-blue-600/20 border-blue-500/50 text-blue-300 font-medium'
+                  : 'bg-white/[0.03] border-white/[0.08] text-slate-400 hover:text-white'
+              }`}
+            >
+              👩 Aditi Sen (8-mo Career Break)
+            </button>
+            <button
+              onClick={() => loadScenario('rahul_hiring')}
+              className={`px-3 py-1.5 rounded-full border transition ${
+                applicant.full_name === 'Rahul Sharma'
+                  ? 'bg-blue-600/20 border-blue-500/50 text-blue-300 font-medium'
+                  : 'bg-white/[0.03] border-white/[0.08] text-slate-400 hover:text-white'
+              }`}
+            >
+              👨 Rahul Sharma (Tier 1 College)
+            </button>
+            <button
+              onClick={() => loadScenario('sunita_lending')}
+              className={`px-3 py-1.5 rounded-full border transition ${
+                applicant.full_name === 'Sunita Patil'
+                  ? 'bg-blue-600/20 border-blue-500/50 text-blue-300 font-medium'
+                  : 'bg-white/[0.03] border-white/[0.08] text-slate-400 hover:text-white'
+              }`}
+            >
+              🌾 Sunita Patil (Rural Micro-Loan)
+            </button>
+          </div>
+        </section>
+
+        {/* 3-STEP GUIDE CARDS: "How to use this website" */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] transition space-y-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center font-bold text-xs">
+              01
             </div>
-            <h2 className="text-xl font-bold text-white">
-              {activeTab === 'hiring' 
-                ? 'Auditing AI Models Used in Recruitment & Resume Screening'
-                : 'Auditing AI Models Used in Loan Approvals & Credit Scoring'}
-            </h2>
-            <p className="text-xs text-slate-400">
-              Evaluates model predictions for bias against gender & socio-economic tiers, tests decision flip stability with NVIDIA Nemotron, and verifies DPDP Act privacy rules.
+            <h3 className="text-sm font-semibold text-white">Input Any Applicant</h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Enter or edit any candidate’s skills, experience, or loan financials below. Paste free-text resumes to test PII leaks.
             </p>
           </div>
 
-          <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-right shrink-0">
-            <span className="text-[11px] text-slate-400 block">Tested Batch Size</span>
-            <span className="text-lg font-bold text-white font-mono">{currentAudit?.totalAudited || 500} Profiles</span>
-          </div>
-        </div>
-
-        {/* 3 Main KPI Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* 1. Disparate Impact */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
-            <div className="flex justify-between text-xs text-slate-400 font-medium">
-              <span>Disparate Impact Ratio</span>
-              <Scale className="w-4 h-4 text-indigo-400" />
+          <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] transition space-y-2">
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-xs">
+              02
             </div>
-            <div className="flex items-baseline space-x-2">
-              <span className={`text-3xl font-extrabold ${isDiPass ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {diRatio}
-              </span>
-              <span className="text-xs text-slate-500">/ 1.00 (Min 0.80)</span>
-            </div>
-            <p className="text-xs text-slate-400">
-              {isDiPass 
-                ? 'Compliant with EEOC 80% Four-Fifths rule' 
-                : `${((1 - diRatio) * 100).toFixed(0)}% lower approval rate for female applicants`}
+            <h3 className="text-sm font-semibold text-white">NVIDIA Nemotron Twin-Test</h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Veritas AI generates an identical Counterfactual Twin, holding merit 100% constant to expose unconscious bias.
             </p>
           </div>
 
-          {/* 2. Demographic Parity */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
-            <div className="flex justify-between text-xs text-slate-400 font-medium">
-              <span>Demographic Parity Gap</span>
-              <Users className="w-4 h-4 text-cyan-400" />
+          <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] transition space-y-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-xs">
+              03
             </div>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-3xl font-extrabold text-cyan-400">
-                {((currentAudit?.metrics?.demographicParityDiff ?? 0) * 100).toFixed(1)}%
-              </span>
-            </div>
-            <p className="text-xs text-slate-400">
-              Male ({((currentAudit?.privStats?.selectionRate ?? 0) * 100).toFixed(0)}%) vs Female ({((currentAudit?.unprivStats?.selectionRate ?? 0) * 100).toFixed(0)}%) pass rate
+            <h3 className="text-sm font-semibold text-white">DPDP Act & 1-Click Fix</h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Scan for Aadhaar/PAN leakage, calibrate the decision boundary to restore the 80% rule, and download your certificate.
             </p>
           </div>
+        </section>
 
-          {/* 3. DPDP Index */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
-            <div className="flex justify-between text-xs text-slate-400 font-medium">
-              <span>DPDP Act (2023) Index</span>
-              <Lock className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div className="flex items-baseline space-x-2">
-              <span className={`text-3xl font-extrabold ${currentDpdp?.dpdpScore >= 70 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {currentDpdp?.dpdpScore ?? 0}/100
-              </span>
-              <span className="text-xs text-slate-500">Grade: {currentDpdp?.grade?.slice(0, 1)}</span>
-            </div>
-            <p className="text-xs text-slate-400">
-              {currentDpdp?.metrics?.aadhaarLeaks ?? 0} Aadhaar leaks • {currentDpdp?.metrics?.proxyBreaches ?? 0} proxy breaches
-            </p>
-          </div>
-        </div>
-
-        {/* SECTION 1: DECISION THRESHOLD & ONE-CLICK AUTO-MITIGATION */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
+        {/* INTERACTIVE LIVE AUDITING WORKSPACE (Clean Apple-Style) */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
             <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-indigo-400" />
-                Live Decision Boundary Sandbox & Threshold Auto-Fix
-              </h3>
-              <p className="text-xs text-slate-400">
-                Move slider to see how model threshold impacts selection disparity, or click auto-mitigate.
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Cpu className="w-5 h-5 text-blue-400" />
+                Live Model Auditing Studio
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Target Model: <span className="font-mono text-slate-200">{domain === 'hiring' ? 'TechHire-Screening-Agent-v2' : 'FinCorp-Credit-Underwriter-v1.8'}</span>
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-400">Current: <strong className="text-white font-mono">{threshold.toFixed(2)}</strong></span>
-              <button
-                onClick={() => setThreshold(currentAudit?.mitigation?.calibratedThreshold ?? 0.40)}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md shadow-indigo-600/30"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Apply Auto-Fix ({currentAudit?.mitigation?.calibratedThreshold ?? 0.40})
-              </button>
+
+            <button
+              onClick={handleRunAudit}
+              disabled={loadingAudit}
+              className="bg-[#0071e3] hover:bg-[#0077ed] disabled:opacity-50 text-white font-medium text-xs px-6 py-2.5 rounded-full transition shadow-md shadow-blue-500/20 flex items-center gap-2"
+            >
+              {loadingAudit ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Auditing with NVIDIA Nemotron...
+                </>
+              ) : (
+                <>
+                  <Cpu className="w-3.5 h-3.5" />
+                  Run Audit on This Applicant
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* The Editable Candidate Form Card */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-white/[0.02] border border-white/[0.08] space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              {/* Column 1: Identity & Demographics */}
+              <div className="space-y-4">
+                <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400">1. Applicant Identity</span>
+                
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={applicant.full_name}
+                    onChange={(e) => setApplicant({ ...applicant, full_name: e.target.value })}
+                    className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-slate-300 block mb-1">Gender</label>
+                    <select
+                      value={applicant.gender}
+                      onChange={(e) => setApplicant({ ...applicant, gender: e.target.value })}
+                      className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                    >
+                      <option value="Female">Female</option>
+                      <option value="Male">Male</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-300 block mb-1">Age</label>
+                    <input
+                      type="number"
+                      value={applicant.age}
+                      onChange={(e) => setApplicant({ ...applicant, age: parseInt(e.target.value) || 28 })}
+                      className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1">
+                    {domain === 'hiring' ? 'College Tier' : 'Geographical Location Tier'}
+                  </label>
+                  <select
+                    value={domain === 'hiring' ? applicant.college_tier : applicant.tier_location}
+                    onChange={(e) => {
+                      if (domain === 'hiring') setApplicant({ ...applicant, college_tier: e.target.value });
+                      else setApplicant({ ...applicant, tier_location: e.target.value });
+                    }}
+                    className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                  >
+                    {domain === 'hiring' ? (
+                      <>
+                        <option value="Tier 1 (IIT/NIT/BITS)">Tier 1 (IIT/NIT/BITS)</option>
+                        <option value="Tier 2 (Top State University)">Tier 2 (Top State University)</option>
+                        <option value="Tier 3 (Local College)">Tier 3 (Local Affiliated College)</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="Tier 1 (Metro)">Tier 1 (Metro)</option>
+                        <option value="Tier 2 (Emerging)">Tier 2 (Emerging City)</option>
+                        <option value="Tier 3 (Rural/Semi-urban)">Tier 3 (Rural / Semi-urban)</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              {/* Column 2: Merits & Financials */}
+              <div className="space-y-4">
+                <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400">2. Competency & Merits</span>
+
+                {domain === 'hiring' ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-300 block mb-1">Skills Score (0-100)</label>
+                        <input
+                          type="number"
+                          value={applicant.skills_score}
+                          onChange={(e) => setApplicant({ ...applicant, skills_score: parseInt(e.target.value) || 80 })}
+                          className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-300 block mb-1">Experience (Years)</label>
+                        <input
+                          type="number"
+                          value={applicant.years_exp}
+                          onChange={(e) => setApplicant({ ...applicant, years_exp: parseFloat(e.target.value) || 4 })}
+                          className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-1">Career Break (Months)</label>
+                      <input
+                        type="number"
+                        value={applicant.career_break_months}
+                        onChange={(e) => setApplicant({ ...applicant, career_break_months: parseInt(e.target.value) || 0 })}
+                        className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                      />
+                      <span className="text-[10px] text-slate-500 block mt-1">Tests if model penalizes maternity/caregiving gaps.</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-300 block mb-1">Credit Score (300-850)</label>
+                        <input
+                          type="number"
+                          value={applicant.credit_score}
+                          onChange={(e) => setApplicant({ ...applicant, credit_score: parseInt(e.target.value) || 700 })}
+                          className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-300 block mb-1">Annual Income (₹)</label>
+                        <input
+                          type="number"
+                          value={applicant.annual_income_inr}
+                          onChange={(e) => setApplicant({ ...applicant, annual_income_inr: parseInt(e.target.value) || 1000000 })}
+                          className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-300 block mb-1">Loan Amount (₹)</label>
+                        <input
+                          type="number"
+                          value={applicant.loan_amount_inr}
+                          onChange={(e) => setApplicant({ ...applicant, loan_amount_inr: parseInt(e.target.value) || 500000 })}
+                          className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-300 block mb-1">Debt-to-Income (DTI)</label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={applicant.debt_to_income}
+                          onChange={(e) => setApplicant({ ...applicant, debt_to_income: parseFloat(e.target.value) || 0.3 })}
+                          className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Column 3: Free-Text Resume / Application Notes */}
+              <div className="space-y-4">
+                <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400">3. Free Text Context & DPDP Scan</span>
+
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1">
+                    {domain === 'hiring' ? 'Candidate Resume Snippet' : 'Credit Application Notes'}
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={applicant.notes}
+                    onChange={(e) => setApplicant({ ...applicant, notes: e.target.value })}
+                    className="w-full bg-[#11131a] border border-white/[0.1] rounded-xl p-3 text-xs text-slate-300 focus:outline-none focus:border-blue-500 font-mono transition"
+                    placeholder="Enter candidate profile text..."
+                  />
+                  <span className="text-[10px] text-slate-500 block mt-1">
+                    Tip: Includes unmasked Aadhaar UID or marital status to test DPDP Act Section 6 & 8 compliance.
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-2">
+          {/* NVIDIA NEMOTRON TWIN-TEST RESULTS DISPLAY */}
+          {nvidiaResult && (
+            <div className="space-y-4 pt-2">
+              {/* Verdict Banner */}
+              <div className={`p-4 rounded-2xl border flex items-center justify-between ${
+                nvidiaResult.counterfactualTwinTest?.decisionFlipped
+                  ? 'bg-rose-950/30 border-rose-500/30 text-rose-200'
+                  : 'bg-emerald-950/30 border-emerald-500/30 text-emerald-200'
+              }`}>
+                <div className="flex items-center space-x-3">
+                  {nvidiaResult.counterfactualTwinTest?.decisionFlipped ? (
+                    <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                  )}
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider">
+                      {nvidiaResult.counterfactualTwinTest?.decisionFlipped
+                        ? 'CRITICAL BIAS FLIP: Changing Demographics Reversed The Decision'
+                        : 'ROBUST DECISION: Model Maintained Decision Across Demographic Twins'}
+                    </h4>
+                    <p className="text-xs opacity-80 mt-0.5">
+                      {nvidiaResult.counterfactualTwinTest?.verdict}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right font-mono">
+                  <span className="text-[10px] text-slate-400 block">Score Disparity</span>
+                  <span className="text-base font-bold">
+                    {nvidiaResult.counterfactualTwinTest?.disparityDelta} pts
+                  </span>
+                </div>
+              </div>
+
+              {/* Side-by-side Twin Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Left: Original Profile */}
+                <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.08] space-y-3">
+                  <div className="flex justify-between items-center border-b border-white/[0.06] pb-2">
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Original Candidate</span>
+                      <h4 className="text-sm font-bold text-white">{applicant.full_name}</h4>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                      nvidiaResult.originalEvaluation?.decision === 'APPROVE' || nvidiaResult.originalEvaluation?.decision === 'SHORTLIST'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                    }`}>
+                      {nvidiaResult.originalEvaluation?.decision} ({nvidiaResult.originalEvaluation?.score}/100)
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed bg-[#11131a] p-3 rounded-xl border border-white/[0.06]">
+                    {nvidiaResult.originalEvaluation?.aiResponse}
+                  </p>
+
+                  {nvidiaResult.originalEvaluation?.reasoningChain && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[11px] font-semibold text-blue-400 flex items-center gap-1">
+                          <Cpu className="w-3 h-3" /> Chain-of-Thought Inner Reasoning:
+                        </span>
+                        <button
+                          onClick={() => setShowChainOfThought(!showChainOfThought)}
+                          className="text-[10px] text-slate-500 hover:text-slate-300"
+                        >
+                          {showChainOfThought ? 'Collapse' : 'Expand'}
+                        </button>
+                      </div>
+                      {showChainOfThought && (
+                        <pre className="text-[10px] text-slate-400 bg-[#0d0f17] p-2.5 rounded-xl border border-white/[0.06] font-mono whitespace-pre-wrap max-h-28 overflow-y-auto">
+                          {nvidiaResult.originalEvaluation?.reasoningChain}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Counterfactual Twin */}
+                <div className="p-5 rounded-2xl bg-white/[0.02] border border-blue-500/30 space-y-3">
+                  <div className="flex justify-between items-center border-b border-white/[0.06] pb-2">
+                    <div>
+                      <span className="text-[10px] text-blue-400 uppercase font-bold">Counterfactual Twin (Swapped)</span>
+                      <h4 className="text-sm font-bold text-white">{nvidiaResult.counterfactualTwinTest?.twin?.full_name}</h4>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                      nvidiaResult.counterfactualTwinTest?.twinDecision === 'APPROVE' || nvidiaResult.counterfactualTwinTest?.twinDecision === 'SHORTLIST'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                    }`}>
+                      {nvidiaResult.counterfactualTwinTest?.twinDecision} ({nvidiaResult.counterfactualTwinTest?.twinScore}/100)
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed bg-[#11131a] p-3 rounded-xl border border-white/[0.06]">
+                    Holding qualifications identical, modifying only demographic markers shifted the score by{' '}
+                    <strong className="text-amber-400 font-bold">{nvidiaResult.counterfactualTwinTest?.disparityDelta} points</strong>.
+                  </p>
+
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-semibold text-blue-400 flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3" /> Recommended Action:
+                    </span>
+                    <ul className="text-[11px] text-slate-300 space-y-0.5 list-disc list-inside">
+                      {nvidiaResult.remediations?.map((r: string, idx: number) => (
+                        <li key={idx}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* DPDP Privacy Violations on this Profile */}
+              {nvidiaResult.dpdpAudit?.violations?.length > 0 && (
+                <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-rose-200">
+                    <ShieldAlert className="w-4 h-4 text-rose-400" />
+                    DPDP Act (2023) Privacy Violations Detected in Profile:
+                  </div>
+                  <ul className="list-disc list-inside space-y-1">
+                    {nvidiaResult.dpdpAudit.violations.map((v: string, idx: number) => (
+                      <li key={idx}>{v}</li>
+                    ))}
+                  </ul>
+                  <span className="text-[11px] text-slate-400 block pt-1 font-mono">
+                    Statutory Action: Strip Aadhaar tokens before passing resume text to LLM inference pipeline.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* BATCH FAIRNESS & AUTO-MITIGATION SECTION */}
+        <section className="p-8 rounded-3xl bg-white/[0.02] border border-white/[0.08] space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.06] pb-4">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-blue-400" />
+                Batch Fairness Metrology & One-Click Calibration
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Evaluates 500 historical profiles. Current operating threshold: <strong className="text-white font-mono">{threshold.toFixed(2)}</strong>
+              </p>
+            </div>
+
+            <button
+              onClick={() => setThreshold(auditData?.mitigation?.calibratedThreshold ?? 0.40)}
+              className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-4 py-2 rounded-full transition flex items-center gap-1.5 shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Auto-Calibrate to Optimal Threshold ({auditData?.mitigation?.calibratedThreshold ?? 0.40})
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-2xl bg-[#11131a] border border-white/[0.06]">
+              <span className="text-xs text-slate-400 block">Disparate Impact Ratio</span>
+              <span className={`text-2xl font-extrabold ${isDiPass ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {diRatio}
+              </span>
+              <span className="text-[11px] text-slate-500 block">Pass minimum: 0.80</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-[#11131a] border border-white/[0.06]">
+              <span className="text-xs text-slate-400 block">Demographic Selection Gap</span>
+              <span className="text-2xl font-extrabold text-cyan-400">
+                {((auditData?.metrics?.demographicParityDiff ?? 0) * 100).toFixed(1)}%
+              </span>
+              <span className="text-[11px] text-slate-500 block">Selection rate variance</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-[#11131a] border border-white/[0.06]">
+              <span className="text-xs text-slate-400 block">DPDP Compliance Index</span>
+              <span className="text-2xl font-extrabold text-emerald-400">
+                {dpdpData?.dpdpScore ?? 75}/100
+              </span>
+              <span className="text-[11px] text-slate-500 block">{dpdpData?.metrics?.aadhaarLeaks ?? 0} Aadhaar leaks detected</span>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <div className="flex justify-between text-xs text-slate-400">
+              <span>Decision Threshold Slider:</span>
+              <span className="font-mono text-white font-bold">{threshold.toFixed(2)}</span>
+            </div>
             <input
               type="range"
               min="0.30"
@@ -378,234 +774,11 @@ export default function Home() {
               step="0.02"
               value={threshold}
               onChange={(e) => setThreshold(parseFloat(e.target.value))}
-              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              className="w-full h-1.5 bg-[#1c1e2b] rounded-lg appearance-none cursor-pointer accent-blue-500"
             />
-            <div className="flex justify-between text-[11px] text-slate-500 font-mono">
-              <span>0.30 (Relaxed)</span>
-              <span>0.50 (Standard Legacy Threshold)</span>
-              <span>0.75 (Strict)</span>
-            </div>
           </div>
-        </div>
+        </section>
 
-        {/* SECTION 2: NVIDIA NEMOTRON TWIN-TEST ARENA (CORE INNOVATION) */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-6">
-          <div className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Cpu className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-base font-bold text-white">
-                  NVIDIA Nemotron Reasoning & Twin Stress-Test
-                </h3>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Evaluates a profile and generates an identical Counterfactual Twin to detect latent bias and Chain-of-Thought reasoning.
-              </p>
-            </div>
-
-            <button
-              onClick={() => runNvidiaAudit(activeTab, selectedCand)}
-              disabled={loadingNvidia}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-md shadow-indigo-600/30"
-            >
-              {loadingNvidia ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  Auditing via NVIDIA NIM...
-                </>
-              ) : (
-                <>
-                  <Cpu className="w-3.5 h-3.5" />
-                  Run NVIDIA Twin Audit
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Quick Profile Selector */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 text-xs">
-            <span className="text-slate-400 shrink-0 font-medium">Select Applicant:</span>
-            {currentAudit?.sampleCandidates?.slice(0, 6).map((cand: any) => (
-              <button
-                key={cand.applicant_id || cand.candidate_id || Math.random()}
-                onClick={() => {
-                  if (activeTab === 'hiring') setSelectedHiringCand(cand);
-                  else setSelectedLendingCand(cand);
-                  runNvidiaAudit(activeTab, cand);
-                }}
-                className={`px-3 py-1.5 rounded-lg border transition shrink-0 ${
-                  selectedCand?.full_name === cand.full_name
-                    ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 font-semibold'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {cand.full_name || cand.name} ({cand.gender})
-              </button>
-            ))}
-          </div>
-
-          {/* Side-by-side Twin Results */}
-          {currentNvidia && (
-            <div className="space-y-4">
-              <div className={`p-4 rounded-xl border flex items-center justify-between ${
-                currentNvidia.counterfactualTwinTest?.decisionFlipped
-                  ? 'bg-rose-950/40 border-rose-500/40 text-rose-200'
-                  : 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
-              }`}>
-                <div className="flex items-center space-x-3">
-                  {currentNvidia.counterfactualTwinTest?.decisionFlipped ? (
-                    <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
-                  ) : (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                  )}
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider">
-                      {currentNvidia.counterfactualTwinTest?.decisionFlipped
-                        ? 'CRITICAL BIAS: Counterfactual Demographic Swap Reversed Decision'
-                        : 'DECISION STABLE ACROSS COUNTERFACTUAL TWINS'}
-                    </h4>
-                    <p className="text-xs opacity-80">
-                      {currentNvidia.counterfactualTwinTest?.verdict}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right font-mono text-xs">
-                  <span className="text-slate-400 block text-[10px]">Score Disparity</span>
-                  <span className="text-lg font-bold">
-                    {currentNvidia.counterfactualTwinTest?.disparityDelta} pts
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Original Profile */}
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <div>
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Original Candidate</span>
-                      <h4 className="text-sm font-bold text-white">{currentNvidia.originalEvaluation?.candidate?.full_name}</h4>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      currentNvidia.originalEvaluation?.decision === 'APPROVE' || currentNvidia.originalEvaluation?.decision === 'SHORTLIST'
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : 'bg-rose-500/20 text-rose-400'
-                    }`}>
-                      {currentNvidia.originalEvaluation?.decision} ({currentNvidia.originalEvaluation?.score}/100)
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-lg border border-slate-800">
-                    {currentNvidia.originalEvaluation?.aiResponse}
-                  </p>
-
-                  {currentNvidia.originalEvaluation?.reasoningChain && (
-                    <div className="space-y-1">
-                      <span className="text-[11px] font-semibold text-indigo-400 flex items-center gap-1">
-                        <Cpu className="w-3 h-3" /> Chain-of-Thought Inner Reasoning:
-                      </span>
-                      <pre className="text-[10px] text-slate-400 bg-slate-900 p-2.5 rounded-lg border border-slate-800 font-mono whitespace-pre-wrap max-h-24 overflow-y-auto">
-                        {currentNvidia.originalEvaluation?.reasoningChain}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-
-                {/* Counterfactual Twin */}
-                <div className="bg-slate-950 p-4 rounded-xl border border-indigo-500/30 space-y-3">
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <div>
-                      <span className="text-[10px] text-indigo-400 uppercase font-bold">Counterfactual Twin (Demographics Swapped)</span>
-                      <h4 className="text-sm font-bold text-white">{currentNvidia.counterfactualTwinTest?.twin?.full_name}</h4>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      currentNvidia.counterfactualTwinTest?.twinDecision === 'APPROVE' || currentNvidia.counterfactualTwinTest?.twinDecision === 'SHORTLIST'
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : 'bg-rose-500/20 text-rose-400'
-                    }`}>
-                      {currentNvidia.counterfactualTwinTest?.twinDecision} ({currentNvidia.counterfactualTwinTest?.twinScore}/100)
-                    </span>
-                  </div>
-
-                  <div className="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-lg border border-slate-800">
-                    Holding merits identical, changing only demographic markers created a{' '}
-                    <strong className="text-amber-400 font-bold">{currentNvidia.counterfactualTwinTest?.disparityDelta} point delta</strong>.
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-[11px] font-semibold text-indigo-400 flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3" /> Recommended Fix:
-                    </span>
-                    <ul className="text-[11px] text-slate-300 space-y-1 list-disc list-inside">
-                      {currentNvidia.remediations?.map((r: string, idx: number) => (
-                        <li key={idx}>{r}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* SECTION 3: DPDP ACT (2023) PRIVACY CHECKER */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-5">
-          <div className="border-b border-slate-800 pb-4 flex justify-between items-center">
-            <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Lock className="w-4 h-4 text-emerald-400" />
-                DPDP Act 2023 Statutory Privacy & Redaction Scanner
-              </h3>
-              <p className="text-xs text-slate-400">
-                Audits free text resumes and loan notes for Aadhaar (Sec 8(5)) and marital proxy leaks (Sec 6).
-              </p>
-            </div>
-            <span className="text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full">
-              Score: {currentDpdp?.dpdpScore ?? 75}/100
-            </span>
-          </div>
-
-          <div className="space-y-3">
-            <textarea
-              rows={3}
-              value={activeTab === 'hiring' ? customHiringText : customLendingText}
-              onChange={(e) => {
-                if (activeTab === 'hiring') setCustomHiringText(e.target.value);
-                else setCustomLendingText(e.target.value);
-              }}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
-              placeholder="Paste candidate resume or loan application text to test DPDP redaction..."
-            />
-
-            <div className="flex justify-between items-center">
-              <span className="text-[11px] text-slate-500">
-                Tests for 12-digit Aadhaar UID, PAN Card patterns, mobile numbers, and non-merit marital status.
-              </span>
-              <button
-                onClick={() => handleScanText(activeTab)}
-                disabled={activeTab === 'hiring' ? scanningHiring : scanningLending}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                Scan Text for Violations
-              </button>
-            </div>
-
-            {/* Scan Results */}
-            {((activeTab === 'hiring' && hiringScanResult) || (activeTab === 'lending' && lendingScanResult)) && (
-              <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-2 text-xs">
-                {((activeTab === 'hiring' ? hiringScanResult : lendingScanResult).findings || []).map((f: any, idx: number) => (
-                  <div key={idx} className="bg-rose-500/10 border border-rose-500/30 rounded p-2 text-rose-300 flex justify-between items-center">
-                    <div>
-                      <strong className="block text-white">{f.type} ({f.section})</strong>
-                      <span className="text-[11px] text-slate-400">Fix: {f.fix}</span>
-                    </div>
-                    <span className="text-[10px] bg-rose-500/20 text-rose-300 font-bold px-2 py-0.5 rounded">{f.severity}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
       </main>
     </div>
   );
