@@ -847,7 +847,7 @@ export default function Home() {
                   Ultra 550B
                 </span>
               </span>
-              <p className="text-[10px] text-slate-400 hidden sm:block">Autonomous Statutory AI Governance &amp; Metrology</p>
+              <p className="text-[10px] text-slate-400 hidden sm:block">AI Auditor for Hiring &amp; Lending</p>
             </div>
           </div>
 
@@ -2429,7 +2429,7 @@ export default function Home() {
       {/* FOOTER */}
       {/* ========================================================= */}
       <footer className="border-t border-white/[0.08] py-8 text-center text-xs text-slate-500">
-        <p>Veritas AI Autonomous Governance System | Powered by NVIDIA Nemotron Ultra 550B</p>
+        <p>Veritas AI — Auditing AI Systems in Hiring &amp; Lending | Powered by NVIDIA Nemotron Ultra 550B</p>
         <p className="text-[11px] text-slate-600 mt-1">Compliant with India DPDP Act (2023) Section 6 &amp; 8 and Article 14 Statutory Human Oversight Mandates</p>
       </footer>
     </div>

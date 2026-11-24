@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Veritas AI - Responsible AI & DPDP Auditor for HR & Lending",
-  description: "Autonomous Governance, Bias Metrology & DPDP Act Compliance Auditor for AI Decision Models powered by NVIDIA Nemotron.",
+  title: "Veritas AI - Auditing Hiring & Lending Systems",
+  description: "Veritas AI: AI Auditor for Hiring and Lending decisions, DPDP Act 2023 compliance, and Article 14 human oversight powered by NVIDIA Nemotron.",
 };
 
 export default function RootLayout({

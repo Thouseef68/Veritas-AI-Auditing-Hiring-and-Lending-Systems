@@ -1,4 +1,4 @@
-# Veritas AI: Autonomous Algorithmic Governance & Responsible AI Metrology Platform
+# Veritas AI: Auditing Hiring and Lending Systems
 
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.4-black?logo=next.js)](https://nextjs.org/)
 [![NVIDIA NIM](https://img.shields.io/badge/NVIDIA%20NIM-Nemotron%20Ultra%20550B-76B900?logo=nvidia)](https://build.nvidia.com/)
@@ -17,7 +17,7 @@ Automated decision-making systems in recruitment and lending have created unprec
 - **Hiring ATS engines** routinely penalize qualified women returning from maternity or caregiving leaves (career gap haircut) and automatically downgrade applicants graduating from Tier-2 and Tier-3 institutions regardless of actual programming competence.
 - **Credit underwriting models** systematically redline applicants from non-metro postal codes and penalize MSME entrepreneurs and self-employed artisans who lack corporate salary slips despite robust 15–30 day bank cash inflows and impeccable CIBIL discipline.
 
-**Veritas AI** is an independent, legal-grade AI Governance and Metrology Platform. Rather than acting as another black-box decision engine, Veritas AI investigates, audits, and stress-tests the AI models making employment and credit determinations.
+**Veritas AI** is an independent, legal-grade AI auditor for hiring and lending decisions. Rather than acting as another black-box decision engine, Veritas AI investigates, audits, and stress-tests the AI models making employment and credit determinations.
 
 ---
 
