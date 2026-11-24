@@ -67,7 +67,7 @@ export default function Home() {
     loan_amount_inr: 600000,
     debt_to_income: 0.32,
     tier_location: 'Tier 3 (Rural/Semi-urban)',
-    notes: 'Candidate has 5 years of software development experience with React and Node.js. Completed B.Tech with 84/100 skills assessment. Note: 8-month career break for maternity/caregiving. Marital Status: Married. Contact: +91 9820192831. Aadhaar UID: 4829 1928 3819.'
+    notes: 'Candidate has 5 years of software engineering experience with React, Node.js, and cloud systems. Completed B.Tech with distinction. Note: 8-month career break for maternity/caregiving. Marital Status: Married. Contact: +91 9820192831. Aadhaar UID: 4829 1928 3819.'
   });
 
   // Multi-Source Artifacts (GitHub, Live Portfolio, Past Company)
@@ -146,7 +146,7 @@ export default function Home() {
         loan_amount_inr: 600000,
         debt_to_income: 0.32,
         tier_location: 'Tier 3 (Rural/Semi-urban)',
-        notes: 'Candidate has 5 years of software development experience with React and Node.js. Completed B.Tech with 84/100 skills assessment. Note: 8-month career break for maternity/caregiving. Marital Status: Married. Contact: +91 9820192831. Aadhaar UID: 4829 1928 3819.'
+        notes: 'Candidate has 5 years of software engineering experience with React, Node.js, and cloud systems. Completed B.Tech with distinction. Note: 8-month career break for maternity/caregiving. Marital Status: Married. Contact: +91 9820192831. Aadhaar UID: 4829 1928 3819.'
       });
       setGithubUrl('github.com/aditisen/cloud-orchestrator');
       setPortfolioUrl('https://aditi-portfolio.vercel.app');
@@ -168,7 +168,7 @@ export default function Home() {
         loan_amount_inr: 600000,
         debt_to_income: 0.32,
         tier_location: 'Tier 1 (Metro)',
-        notes: 'Software Engineer with 5 years experience at an enterprise technology firm. Graduated from premier institute. Continuous career history with no gaps. Technical score 84/100.'
+        notes: 'Software Engineer with 5 years experience at an enterprise technology firm. Graduated from premier institute. Continuous career history with no gaps. Led distributed microservices development.'
       });
       setGithubUrl('github.com/rahulsharma-dev/core-platform');
       setPortfolioUrl('https://rahul-sharma.dev');
@@ -260,7 +260,7 @@ export default function Home() {
           }).then(r => r.json()).catch(() => null)
         : Promise.resolve(null);
 
-      // 2. Run NVIDIA Nemotron Audit
+      // 2. Run NVIDIA Nemotron Audit (100% Direct NIM Evaluation, No simulated score)
       const nvidiaPromise = fetch('/api/nvidia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -268,8 +268,7 @@ export default function Home() {
           candidate: {
             ...applicant,
             resume_text: applicant.notes,
-            application_notes: applicant.notes,
-            simulated_model_score: (domain === 'lending' ? applicant.credit_score / 900 : applicant.skills_score / 100) - (applicant.gender === 'Female' ? 0.14 : 0)
+            application_notes: applicant.notes
           },
           domain,
           githubUrl,
@@ -713,17 +712,24 @@ export default function Home() {
 
               <div>
                 <label className="text-xs text-slate-300 block mb-1">
-                  {domain === 'hiring' ? 'Technical Score (0-100)' : 'Annual Income (₹)'}
+                  {domain === 'hiring' ? 'Target Job Role' : 'Annual Income (₹)'}
                 </label>
-                <input
-                  type="number"
-                  value={domain === 'hiring' ? applicant.skills_score : applicant.annual_income_inr}
-                  onChange={(e) => {
-                    if (domain === 'hiring') setApplicant({ ...applicant, skills_score: parseInt(e.target.value) || 80 });
-                    else setApplicant({ ...applicant, annual_income_inr: parseInt(e.target.value) || 1000000 });
-                  }}
-                  className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
-                />
+                {domain === 'hiring' ? (
+                  <input
+                    type="text"
+                    value={applicant.target_role}
+                    onChange={(e) => setApplicant({ ...applicant, target_role: e.target.value })}
+                    placeholder="e.g. Senior Software Engineer"
+                    className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                  />
+                ) : (
+                  <input
+                    type="number"
+                    value={applicant.annual_income_inr}
+                    onChange={(e) => setApplicant({ ...applicant, annual_income_inr: parseInt(e.target.value) || 1000000 })}
+                    className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                  />
+                )}
               </div>
             </div>
 
@@ -1005,9 +1011,9 @@ export default function Home() {
                   <p className="leading-relaxed">
                     {nvidiaResult.counterfactualTwinTest?.decisionFlipped ? (
                       domain === 'hiring' ? (
-                        <>The automated screening model rejected <strong>{applicant.full_name}</strong> due to bias against her 8-month maternity break and IT services pedigree. However, her verified skills score of <strong>{applicant.skills_score}/100</strong> and clean GitHub code qualify her for the role. <strong>The AI Auditor strongly recommends advancing this candidate to the technical round.</strong></>
+                        <>The automated screening model rejected <strong>{applicant.full_name}</strong> due to bias against non-merit factors (e.g. career breaks or company pedigree). However, NVIDIA NIM evaluated her technical credentials at <strong>{nvidiaResult.originalEvaluation?.score}/100</strong> with verified code quality. <strong>The AI Auditor recommends advancing this candidate to the technical round.</strong></>
                       ) : (
-                        <>The automated underwriting model rejected <strong>{applicant.full_name}</strong> primarily due to a rural geographical risk multiplier. Her verified CIBIL score of <strong>{applicant.credit_score}</strong> and solvent debt-to-income ratio justify loan approval.</>
+                        <>The automated underwriting model rejected <strong>{applicant.full_name}</strong> primarily due to geographical risk weighting. Verified credit metrics score at <strong>{nvidiaResult.originalEvaluation?.score}/100</strong>, indicating solvent repayment capability.</>
                       )
                     ) : (
                       <>The automated model&apos;s decision aligns with objective criteria with low demographic bias detected.</>
