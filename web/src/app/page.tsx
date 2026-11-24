@@ -880,17 +880,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Governance Thesis Positioning Banner */}
-      <div className="bg-gradient-to-r from-blue-950/40 via-purple-950/20 to-teal-950/40 border-b border-white/[0.06] py-2.5 px-4 text-center">
-        <p className="text-xs text-slate-300 font-medium flex items-center justify-center flex-wrap gap-2">
-          <span className="text-blue-400 font-bold uppercase tracking-wider text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20">
-            Responsible AI Positioning
-          </span>
-          <span className="italic text-slate-200">
-            "Don't build an AI that decides who deserves a job or loan. Build an AI that investigates whether the AI making that decision deserves to be trusted."
-          </span>
-        </p>
-      </div>
 
       {/* ========================================================= */}
       {/* MAIN CONTAINER */}
