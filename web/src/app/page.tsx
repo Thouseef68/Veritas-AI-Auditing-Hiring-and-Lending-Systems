@@ -33,13 +33,24 @@ import {
   ChevronRight,
   Fingerprint,
   Layers,
-  Compass
+  Compass,
+  UploadCloud,
+  FileUp,
+  Globe,
+  Building2,
+  GitBranch,
+  ExternalLink,
+  FileText,
+  CheckCircle
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 export default function Home() {
   // Domain selection: 'hiring' or 'lending'
   const [domain, setDomain] = useState<'hiring' | 'lending'>('hiring');
+
+  // Hiring Sub-mode: 'direct' | 'upload_resume' | 'multi_source'
+  const [hiringMode, setHiringMode] = useState<'direct' | 'upload_resume' | 'multi_source'>('direct');
 
   // Interactive Candidate Profile (Freely editable by user or visitor)
   const [applicant, setApplicant] = useState({
@@ -71,6 +82,18 @@ export default function Home() {
   
   // Interactive Guide tab
   const [guideTab, setGuideTab] = useState<'walkthrough' | 'who_can_use' | 'core_tech'>('walkthrough');
+
+  // Resume Upload State
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  const [resumeLoading, setResumeLoading] = useState<boolean>(false);
+  const [resumeParseResult, setResumeParseResult] = useState<any>(null);
+
+  // Multi-Source (GitHub, Portfolio, Company) State
+  const [githubUrl, setGithubUrl] = useState<string>('github.com/aditisen/cloud-orchestrator');
+  const [portfolioUrl, setPortfolioUrl] = useState<string>('https://aditi-portfolio.vercel.app');
+  const [companyName, setCompanyName] = useState<string>('TCS / FinTech Startup');
+  const [externalAuditResult, setExternalAuditResult] = useState<any>(null);
+  const [loadingExternalAudit, setLoadingExternalAudit] = useState<boolean>(false);
 
   // Load batch dataset baseline on domain or threshold change
   useEffect(() => {
@@ -125,6 +148,9 @@ export default function Home() {
         tier_location: 'Tier 3 (Rural/Semi-urban)',
         notes: 'Candidate has 5 years of software development experience with React and Node.js. Completed B.Tech with 84/100 skills assessment. Note: 8-month career break for maternity/caregiving. Marital Status: Married. Contact: +91 9820192831. Aadhaar UID: 4829 1928 3819.'
       });
+      setGithubUrl('github.com/aditisen/cloud-orchestrator');
+      setPortfolioUrl('https://aditi-portfolio.vercel.app');
+      setCompanyName('TCS / Early FinTech Startup');
     } else if (preset === 'rahul_hiring') {
       setDomain('hiring');
       setApplicant({
@@ -143,6 +169,9 @@ export default function Home() {
         tier_location: 'Tier 1 (Metro)',
         notes: 'Software Engineer with 5 years experience at an enterprise technology firm. Graduated from premier institute. Continuous career history with no gaps. Technical score 84/100.'
       });
+      setGithubUrl('github.com/rahulsharma-dev/core-platform');
+      setPortfolioUrl('https://rahul-sharma.dev');
+      setCompanyName('Google / Tier-1 Tech');
     } else if (preset === 'sunita_lending') {
       setDomain('lending');
       setApplicant({
@@ -161,6 +190,111 @@ export default function Home() {
         tier_location: 'Tier 3 (Rural/Semi-urban)',
         notes: 'Rural artisan & small business owner applying for working capital loan. Verified CIBIL credit score 735, stable seasonal revenues. PAN Card: ABCDP9821L. Location: Rural District. Aadhaar UID: 9102 3847 1920.'
       });
+    }
+  };
+
+  // Resume File Upload Handler
+  const handleResumeFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setResumeFileName(file.name);
+    setResumeLoading(true);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        let textContent = event.target?.result as string || '';
+        
+        // Call resume parse API
+        const res = await fetch('/api/external-audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'resume_parse',
+            resumeText: textContent
+          })
+        });
+
+        const data = await res.json();
+        if (data.resumeAnalysis) {
+          setResumeParseResult(data.resumeAnalysis);
+          
+          // Auto-populate candidate state with parsed values
+          setApplicant(prev => ({
+            ...prev,
+            full_name: data.resumeAnalysis.extractedName || prev.full_name,
+            years_exp: data.resumeAnalysis.extractedExperience || prev.years_exp,
+            career_break_months: data.resumeAnalysis.careerBreakMonths || prev.career_break_months,
+            gender: data.resumeAnalysis.inferredGender !== 'Not Disclosed' ? data.resumeAnalysis.inferredGender : prev.gender,
+            notes: textContent.length > 500 ? textContent.slice(0, 500) + '...' : textContent
+          }));
+        }
+        setResumeLoading(false);
+      };
+
+      reader.readAsText(file);
+    } catch (err) {
+      console.error('Error reading resume file:', err);
+      setResumeLoading(false);
+    }
+  };
+
+  // Load Sample Pre-formatted Resume
+  const loadSampleResume = async (type: 'aditi' | 'senior_dev') => {
+    setResumeLoading(true);
+    const sampleText = type === 'aditi' 
+      ? `Aditi Sen\nSenior Frontend & Cloud Engineer\nContact: +91 9820192831 | aditi.sen@example.com | Bengaluru\nAadhaar UID: 4829 1928 3819 | PAN: ABCPS1234K\nMarital Status: Married\n\nPROFESSIONAL SUMMARY:\n5 years of extensive software development experience designing scalable micro-frontends with React, TypeScript, and GraphQL. Ranked top 5% in engineering assessments (Skills Score: 84/100).\n\nWORK HISTORY:\nSenior Software Engineer (2024 - Present)\n- Led migration to server-driven UI reducing bundle latency by 42%.\n\nCareer Break (8 months for maternity & infant caregiving: 2023 - 2024)\n- Refreshed distributed systems certifications during pause.\n\nSoftware Engineer (2019 - 2023)\n- Built real-time analytics streaming pipelines.`
+      : `Rahul Sharma\nSenior Full Stack Systems Architect\nEmail: rahul.sharma@example.com | New Delhi\n\nPROFESSIONAL SUMMARY:\n5 years continuous experience at Tier-1 enterprise technology company. Technical competency score 84/100.\n\nWORK HISTORY:\nSenior Architect (2022 - Present)\n- Engineered low-latency order matching engine.\nSoftware Engineer (2019 - 2022)\n- Scaled microservices architecture to 10M daily active users. No career gaps.`;
+
+    setResumeFileName(type === 'aditi' ? 'Aditi_Sen_Resume_2026.txt' : 'Rahul_Sharma_CV.txt');
+    
+    const res = await fetch('/api/external-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'resume_parse',
+        resumeText: sampleText
+      })
+    });
+
+    const data = await res.json();
+    if (data.resumeAnalysis) {
+      setResumeParseResult(data.resumeAnalysis);
+      setApplicant(prev => ({
+        ...prev,
+        full_name: data.resumeAnalysis.extractedName || prev.full_name,
+        years_exp: data.resumeAnalysis.extractedExperience || prev.years_exp,
+        career_break_months: data.resumeAnalysis.careerBreakMonths || prev.career_break_months,
+        gender: data.resumeAnalysis.inferredGender !== 'Not Disclosed' ? data.resumeAnalysis.inferredGender : prev.gender,
+        notes: sampleText
+      }));
+    }
+    setResumeLoading(false);
+  };
+
+  // Run Multi-Source External Audit (GitHub + Website + Company)
+  const handleRunMultiSourceAudit = async () => {
+    setLoadingExternalAudit(true);
+    try {
+      const res = await fetch('/api/external-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'all',
+          githubUrl,
+          portfolioUrl,
+          companyName,
+          targetRole: applicant.target_role,
+          resumeText: applicant.notes
+        })
+      });
+      const data = await res.json();
+      setExternalAuditResult(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingExternalAudit(false);
     }
   };
 
@@ -237,10 +371,29 @@ export default function Home() {
     doc.text(`- Section 6 (Purpose Limitation): Non-merit proxy violations flagged`, 14, 138);
     doc.text(`- Section 8(5) (Data Minimization): Aadhaar UID and PAN token leakage audit complete`, 14, 144);
 
+    // Section 4: Multi-Signal External Verification (if performed)
+    if (externalAuditResult) {
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text("4. Multi-Signal Verification (GitHub Code, Live Portfolio & Pedigree)", 14, 158);
+      doc.setFontSize(10);
+      doc.setTextColor(71, 85, 105);
+      if (externalAuditResult.githubAudit) {
+        doc.text(`- GitHub Profile Audit: ${externalAuditResult.githubAudit.profile} (${externalAuditResult.githubAudit.verifiedRepositories} repos verified)`, 14, 166);
+        doc.text(`  Risk: ${externalAuditResult.githubAudit.algorithmicBiasRisk?.biasType}`, 14, 172);
+      }
+      if (externalAuditResult.websiteAudit) {
+        doc.text(`- Live Portfolio: ${externalAuditResult.websiteAudit.url} (SSL Verified: ${externalAuditResult.websiteAudit.sslEncrypted ? "YES" : "NO"})`, 14, 178);
+      }
+      if (externalAuditResult.companyPedigreeAudit) {
+        doc.text(`- Pedigree Bias Risk: ${externalAuditResult.companyPedigreeAudit.pedigreePenaltyRisk} for ${externalAuditResult.companyPedigreeAudit.evaluatedCompany}`, 14, 184);
+      }
+    }
+
     // Footer
     doc.setFontSize(9);
     doc.setTextColor(148, 163, 184);
-    doc.text("Certified by: Veritas AI Autonomous Governance System | Enterprise AI Metrology Engine", 14, 170);
+    doc.text("Certified by: Veritas AI Autonomous Governance System | Enterprise AI Metrology Engine", 14, 205);
     doc.save(`VeritasAI_${domain.toUpperCase()}_Audit_Report.pdf`);
   };
 
@@ -271,7 +424,7 @@ export default function Home() {
           <div className="bg-[#12141c] p-1 rounded-full border border-white/[0.08] flex items-center text-xs shadow-inner">
             <button
               onClick={() => { setDomain('hiring'); loadScenario('aditi_hiring'); }}
-              className={`px-4 py-1.5 rounded-full font-medium transition-all duration-200 flex items-center gap-1.5 ${
+              className={`px-4 py-1.5 rounded-full font-medium transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
                 domain === 'hiring'
                   ? 'bg-[#0071e3] text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
@@ -282,7 +435,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => { setDomain('lending'); loadScenario('sunita_lending'); }}
-              className={`px-4 py-1.5 rounded-full font-medium transition-all duration-200 flex items-center gap-1.5 ${
+              className={`px-4 py-1.5 rounded-full font-medium transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
                 domain === 'lending'
                   ? 'bg-[#0071e3] text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
@@ -296,7 +449,7 @@ export default function Home() {
           {/* Export Action */}
           <button
             onClick={downloadReport}
-            className="text-xs font-medium text-slate-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.1] px-4 py-2 rounded-full transition flex items-center gap-1.5 shadow-sm"
+            className="text-xs font-medium text-slate-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.1] px-4 py-2 rounded-full transition flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Export Audit</span> PDF
@@ -339,7 +492,7 @@ export default function Home() {
             <div className="flex items-center gap-1.5 bg-[#141620] p-1 rounded-full border border-white/[0.06] text-xs">
               <button
                 onClick={() => setGuideTab('walkthrough')}
-                className={`px-3 py-1 rounded-full font-medium transition ${
+                className={`px-3 py-1 rounded-full font-medium transition cursor-pointer ${
                   guideTab === 'walkthrough' 
                     ? 'bg-blue-600 text-white shadow-sm' 
                     : 'text-slate-400 hover:text-white'
@@ -349,7 +502,7 @@ export default function Home() {
               </button>
               <button
                 onClick={() => setGuideTab('who_can_use')}
-                className={`px-3 py-1 rounded-full font-medium transition ${
+                className={`px-3 py-1 rounded-full font-medium transition cursor-pointer ${
                   guideTab === 'who_can_use' 
                     ? 'bg-blue-600 text-white shadow-sm' 
                     : 'text-slate-400 hover:text-white'
@@ -359,7 +512,7 @@ export default function Home() {
               </button>
               <button
                 onClick={() => setGuideTab('core_tech')}
-                className={`px-3 py-1 rounded-full font-medium transition ${
+                className={`px-3 py-1 rounded-full font-medium transition cursor-pointer ${
                   guideTab === 'core_tech' 
                     ? 'bg-blue-600 text-white shadow-sm' 
                     : 'text-slate-400 hover:text-white'
@@ -376,13 +529,13 @@ export default function Home() {
               <div className="bg-[#12141c]/90 p-4 rounded-2xl border border-white/[0.06] space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 font-bold flex items-center justify-center text-[11px]">1</span>
-                  <strong className="text-white text-xs">Select or Customize an Applicant</strong>
+                  <strong className="text-white text-xs">Select, Upload or Customize</strong>
                 </div>
                 <p className="text-slate-400 leading-relaxed">
-                  Click a preset below (e.g. <span className="text-blue-300 font-medium">Aditi Sen</span> who has an 8-month maternity leave, or <span className="text-blue-300 font-medium">Sunita Patil</span> from a rural district) or type your own custom profile.
+                  Click a preset below (e.g. <span className="text-blue-300 font-medium">Aditi Sen</span> with an 8-month maternity break), upload a resume file directly, or audit GitHub/portfolio links.
                 </p>
                 <div className="pt-1 text-[11px] text-blue-400 flex items-center gap-1 font-medium">
-                  Try preset button below <ArrowRight className="w-3 h-3" />
+                  Try preset button or upload tab below <ArrowRight className="w-3 h-3" />
                 </div>
               </div>
 
@@ -506,7 +659,7 @@ export default function Home() {
               <span className="text-slate-500 text-xs hidden sm:inline">Try Pre-Loaded Test Cases:</span>
               <button
                 onClick={() => loadScenario('aditi_hiring')}
-                className={`px-3.5 py-1.5 rounded-full border transition flex items-center gap-1.5 ${
+                className={`px-3.5 py-1.5 rounded-full border transition flex items-center gap-1.5 cursor-pointer ${
                   applicant.full_name === 'Aditi Sen'
                     ? 'bg-blue-600/20 border-blue-500/50 text-blue-300 font-medium shadow-sm'
                     : 'bg-white/[0.03] border-white/[0.08] text-slate-400 hover:text-white'
@@ -517,7 +670,7 @@ export default function Home() {
               </button>
               <button
                 onClick={() => loadScenario('rahul_hiring')}
-                className={`px-3.5 py-1.5 rounded-full border transition flex items-center gap-1.5 ${
+                className={`px-3.5 py-1.5 rounded-full border transition flex items-center gap-1.5 cursor-pointer ${
                   applicant.full_name === 'Rahul Sharma'
                     ? 'bg-blue-600/20 border-blue-500/50 text-blue-300 font-medium shadow-sm'
                     : 'bg-white/[0.03] border-white/[0.08] text-slate-400 hover:text-white'
@@ -528,7 +681,7 @@ export default function Home() {
               </button>
               <button
                 onClick={() => loadScenario('sunita_lending')}
-                className={`px-3.5 py-1.5 rounded-full border transition flex items-center gap-1.5 ${
+                className={`px-3.5 py-1.5 rounded-full border transition flex items-center gap-1.5 cursor-pointer ${
                   applicant.full_name === 'Sunita Patil'
                     ? 'bg-blue-600/20 border-blue-500/50 text-blue-300 font-medium shadow-sm'
                     : 'bg-white/[0.03] border-white/[0.08] text-slate-400 hover:text-white'
@@ -539,6 +692,45 @@ export default function Home() {
               </button>
             </div>
           </div>
+
+          {/* Hiring Input Mode Segmented Pill Bar (Only in Hiring mode) */}
+          {domain === 'hiring' && (
+            <div className="flex flex-wrap items-center gap-2 bg-[#12141c] p-1.5 rounded-2xl border border-white/[0.08] text-xs">
+              <button
+                onClick={() => setHiringMode('direct')}
+                className={`px-4 py-2 rounded-xl font-medium transition flex items-center gap-2 cursor-pointer ${
+                  hiringMode === 'direct'
+                    ? 'bg-[#0071e3] text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                Direct Profile Editor
+              </button>
+              <button
+                onClick={() => setHiringMode('upload_resume')}
+                className={`px-4 py-2 rounded-xl font-medium transition flex items-center gap-2 cursor-pointer ${
+                  hiringMode === 'upload_resume'
+                    ? 'bg-[#0071e3] text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <FileUp className="w-3.5 h-3.5" />
+                Upload Resume File &amp; Parse
+              </button>
+              <button
+                onClick={() => setHiringMode('multi_source')}
+                className={`px-4 py-2 rounded-xl font-medium transition flex items-center gap-2 cursor-pointer ${
+                  hiringMode === 'multi_source'
+                    ? 'bg-[#0071e3] text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <GitBranch className="w-3.5 h-3.5" />
+                GitHub, Live Portfolio &amp; Company Audit
+              </button>
+            </div>
+          )}
 
           {/* Preset Context Banner: Explaining what to expect */}
           <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-xs text-slate-300 flex items-center justify-between gap-3">
@@ -559,219 +751,601 @@ export default function Home() {
             <span className="text-[11px] text-slate-500 whitespace-nowrap hidden sm:inline">All fields below are editable</span>
           </div>
 
-          {/* The Editable Candidate Form Card */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-[#0b0d14] border border-white/[0.08] space-y-6 shadow-xl">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
-              {/* Column 1: Identity & Demographics */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5 text-blue-400" /> 1. Applicant Profile
-                  </span>
-                  <span className="text-[10px] text-slate-500">Demographic Markers</span>
-                </div>
-                
+          {/* SUB-PANEL 1: RESUME UPLOAD DROPZONE (Active when hiringMode === 'upload_resume') */}
+          {domain === 'hiring' && hiringMode === 'upload_resume' && (
+            <div className="p-6 sm:p-8 rounded-3xl bg-[#0b0d14] border border-white/[0.08] space-y-6 shadow-xl">
+              <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
                 <div>
-                  <label className="text-xs text-slate-300 block mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    value={applicant.full_name}
-                    onChange={(e) => setApplicant({ ...applicant, full_name: e.target.value })}
-                    className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                  />
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <FileUp className="w-4 h-4 text-blue-400" />
+                    Upload Candidate Resume (.pdf, .docx, .txt, .json)
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Extracts candidate experience, technical skills, career pauses, and checks for DPDP Act privacy exposures.
+                  </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-slate-300 block mb-1">Gender</label>
-                    <select
-                      value={applicant.gender}
-                      onChange={(e) => setApplicant({ ...applicant, gender: e.target.value })}
-                      className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                    >
-                      <option value="Female">Female</option>
-                      <option value="Male">Male</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-300 block mb-1">Age</label>
-                    <input
-                      type="number"
-                      value={applicant.age}
-                      onChange={(e) => setApplicant({ ...applicant, age: parseInt(e.target.value) || 28 })}
-                      className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs text-slate-300 block mb-1">
-                    {domain === 'hiring' ? 'College / University Tier' : 'Geographical Location Tier'}
-                  </label>
-                  <select
-                    value={domain === 'hiring' ? applicant.college_tier : applicant.tier_location}
-                    onChange={(e) => {
-                      if (domain === 'hiring') setApplicant({ ...applicant, college_tier: e.target.value });
-                      else setApplicant({ ...applicant, tier_location: e.target.value });
-                    }}
-                    className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-500 hidden sm:inline">Quick Test Resumes:</span>
+                  <button
+                    onClick={() => loadSampleResume('aditi')}
+                    className="text-xs bg-white/[0.05] hover:bg-white/[0.1] text-blue-300 border border-blue-500/30 px-3 py-1 rounded-full transition cursor-pointer"
                   >
-                    {domain === 'hiring' ? (
-                      <>
-                        <option value="Tier 1 (IIT/NIT/BITS)">Tier 1 (IIT/NIT/BITS)</option>
-                        <option value="Tier 2 (Top State University)">Tier 2 (Top State University)</option>
-                        <option value="Tier 3 (Local College)">Tier 3 (Local Affiliated College)</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="Tier 1 (Metro)">Tier 1 (Metro)</option>
-                        <option value="Tier 2 (Emerging)">Tier 2 (Emerging City)</option>
-                        <option value="Tier 3 (Rural/Semi-urban)">Tier 3 (Rural / Semi-urban)</option>
-                      </>
-                    )}
-                  </select>
+                    📄 Load Aditi Resume
+                  </button>
+                  <button
+                    onClick={() => loadSampleResume('senior_dev')}
+                    className="text-xs bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 border border-white/[0.1] px-3 py-1 rounded-full transition cursor-pointer"
+                  >
+                    📄 Load Rahul Resume
+                  </button>
                 </div>
               </div>
 
-              {/* Column 2: Merits & Financials */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1">
-                    <Scale className="w-3.5 h-3.5 text-indigo-400" /> 2. Merit &amp; Qualifications
-                  </span>
-                  <span className="text-[10px] text-slate-500">Objective Competency</span>
+              {/* Upload Drop Area */}
+              <div className="border-2 border-dashed border-white/[0.15] hover:border-blue-500/50 rounded-2xl p-8 text-center bg-[#12141d]/50 transition space-y-3">
+                <div className="w-12 h-12 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto">
+                  <UploadCloud className="w-6 h-6" />
                 </div>
-
-                {domain === 'hiring' ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-slate-300 block mb-1">Technical Skills Score (0-100)</label>
-                        <input
-                          type="number"
-                          value={applicant.skills_score}
-                          onChange={(e) => setApplicant({ ...applicant, skills_score: parseInt(e.target.value) || 80 })}
-                          className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-300 block mb-1">Experience (Years)</label>
-                        <input
-                          type="number"
-                          value={applicant.years_exp}
-                          onChange={(e) => setApplicant({ ...applicant, years_exp: parseFloat(e.target.value) || 4 })}
-                          className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-slate-300 block mb-1">Career Break (Months)</label>
-                      <input
-                        type="number"
-                        value={applicant.career_break_months}
-                        onChange={(e) => setApplicant({ ...applicant, career_break_months: parseInt(e.target.value) || 0 })}
-                        className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
-                      />
-                      <span className="text-[10px] text-slate-500 block mt-1">
-                        Tests if the model unfairly discounts maternity/caregiving leaves.
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-slate-300 block mb-1">Credit Score (300-850)</label>
-                        <input
-                          type="number"
-                          value={applicant.credit_score}
-                          onChange={(e) => setApplicant({ ...applicant, credit_score: parseInt(e.target.value) || 700 })}
-                          className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-300 block mb-1">Annual Income (₹)</label>
-                        <input
-                          type="number"
-                          value={applicant.annual_income_inr}
-                          onChange={(e) => setApplicant({ ...applicant, annual_income_inr: parseInt(e.target.value) || 1000000 })}
-                          className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-slate-300 block mb-1">Loan Amount (₹)</label>
-                        <input
-                          type="number"
-                          value={applicant.loan_amount_inr}
-                          onChange={(e) => setApplicant({ ...applicant, loan_amount_inr: parseInt(e.target.value) || 500000 })}
-                          className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-300 block mb-1">Debt-to-Income (DTI)</label>
-                        <input
-                          type="number"
-                          step="0.05"
-                          value={applicant.debt_to_income}
-                          onChange={(e) => setApplicant({ ...applicant, debt_to_income: parseFloat(e.target.value) || 0.3 })}
-                          className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
-                        />
-                      </div>
-                    </div>
-                  </>
+                <div>
+                  <label htmlFor="resume-upload" className="cursor-pointer text-xs font-semibold text-blue-400 hover:text-blue-300 underline underline-offset-4">
+                    Click to select resume file
+                  </label>
+                  <span className="text-xs text-slate-400"> or drag and drop your file here</span>
+                  <input
+                    id="resume-upload"
+                    type="file"
+                    accept=".pdf,.docx,.txt,.json,.md"
+                    onChange={handleResumeFileUpload}
+                    className="hidden"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Supports PDF, DOCX, TXT, or JSON. The text is parsed locally and privacy-audited before model inference.
+                </p>
+                {resumeFileName && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 text-blue-300 text-xs border border-blue-500/20 font-mono">
+                    <FileText className="w-3.5 h-3.5" />
+                    Selected: {resumeFileName}
+                  </div>
                 )}
               </div>
 
-              {/* Column 3: Free-Text Context & DPDP Scan */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1">
-                    <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" /> 3. Text Context &amp; Privacy
-                  </span>
-                  <span className="text-[10px] text-slate-500">DPDP Act Section 6 &amp; 8</span>
+              {/* Parsed Findings Display */}
+              {resumeLoading && (
+                <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Parsing resume document and checking statutory DPDP Section 6 &amp; 8 indicators...
                 </div>
+              )}
 
+              {resumeParseResult && !resumeLoading && (
+                <div className="space-y-4 p-5 rounded-2xl bg-[#12141d] border border-white/[0.08]">
+                  <div className="flex justify-between items-center border-b border-white/[0.06] pb-2">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <CheckCircle className="w-4 h-4 text-emerald-400" /> Resume Extraction Summary
+                    </span>
+                    <span className="text-[11px] text-emerald-400 font-mono">
+                      Applied to Active Audit Profile
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="bg-[#0b0d14] p-3 rounded-xl border border-white/[0.06]">
+                      <span className="text-slate-500 text-[10px] block">Extracted Name</span>
+                      <strong className="text-white text-xs">{applicant.full_name}</strong>
+                    </div>
+                    <div className="bg-[#0b0d14] p-3 rounded-xl border border-white/[0.06]">
+                      <span className="text-slate-500 text-[10px] block">Experience</span>
+                      <strong className="text-white text-xs">{applicant.years_exp} Years</strong>
+                    </div>
+                    <div className="bg-[#0b0d14] p-3 rounded-xl border border-white/[0.06]">
+                      <span className="text-slate-500 text-[10px] block">Career Break</span>
+                      <strong className={applicant.career_break_months > 0 ? 'text-amber-400 text-xs' : 'text-white text-xs'}>
+                        {applicant.career_break_months} Months
+                      </strong>
+                    </div>
+                    <div className="bg-[#0b0d14] p-3 rounded-xl border border-white/[0.06]">
+                      <span className="text-slate-500 text-[10px] block">Inferred Demographic</span>
+                      <strong className="text-white text-xs">{applicant.gender}</strong>
+                    </div>
+                  </div>
+
+                  {/* PII alerts on uploaded resume */}
+                  {resumeParseResult.piiExposures && (
+                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200 space-y-1">
+                      <div className="flex items-center gap-1.5 font-semibold text-amber-300">
+                        <ShieldAlert className="w-4 h-4 text-amber-400" />
+                        DPDP Act Privacy Tokens Detected in Resume:
+                      </div>
+                      <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
+                        {resumeParseResult.piiExposures.aadhaarFound && (
+                          <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono">
+                            Aadhaar UID: {resumeParseResult.piiExposures.aadhaarValue || 'Exposed'}
+                          </span>
+                        )}
+                        {resumeParseResult.piiExposures.panFound && (
+                          <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono">
+                            PAN: {resumeParseResult.piiExposures.panValue || 'Exposed'}
+                          </span>
+                        )}
+                        {resumeParseResult.piiExposures.maritalStatusFound && (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                            Section 6 Violation: Marital Status
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      onClick={() => setHiringMode('direct')}
+                      className="text-xs text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                    >
+                      Inspect in Full Candidate Form <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      onClick={handleRunAudit}
+                      disabled={loadingAudit}
+                      className="bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-medium px-5 py-2.5 rounded-full transition shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer"
+                    >
+                      {loadingAudit ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          Auditing via NVIDIA Nemotron...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          Run NVIDIA AI Audit on Uploaded Resume
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SUB-PANEL 2: GITHUB, LIVE PORTFOLIO & COMPANY AUDIT (Active when hiringMode === 'multi_source') */}
+          {domain === 'hiring' && hiringMode === 'multi_source' && (
+            <div className="p-6 sm:p-8 rounded-3xl bg-[#0b0d14] border border-white/[0.08] space-y-6 shadow-xl">
+              <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
                 <div>
-                  <label className="text-xs text-slate-300 block mb-1">
-                    {domain === 'hiring' ? 'Candidate Resume Snippet' : 'Credit Application Notes'}
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <GitBranch className="w-4 h-4 text-blue-400" />
+                    Multi-Signal External Verification &amp; Pedigree Audit
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Audits GitHub code repositories, live portfolio deployments, and tests for institutional company pedigree bias in hiring models.
+                  </p>
+                </div>
+              </div>
+
+              {/* 3 Input Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                
+                {/* 1. GitHub */}
+                <div className="space-y-2">
+                  <label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+                    <GitBranch className="w-3.5 h-3.5 text-blue-400" />
+                    GitHub Repository / Profile URL
                   </label>
-                  <textarea
-                    rows={4}
-                    value={applicant.notes}
-                    onChange={(e) => setApplicant({ ...applicant, notes: e.target.value })}
-                    className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl p-3 text-xs text-slate-300 focus:outline-none focus:border-blue-500 font-mono transition"
-                    placeholder="Enter resume text or application notes..."
+                  <input
+                    type="text"
+                    value={githubUrl}
+                    onChange={(e) => setGithubUrl(e.target.value)}
+                    placeholder="github.com/username/repo"
+                    className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
                   />
-                  <span className="text-[10px] text-slate-500 block mt-1">
-                    Includes sensitive identifiers (Aadhaar UID, marital status) to test privacy redaction.
+                  <span className="text-[10px] text-slate-500 block">
+                    Audits code quality &amp; tests for <em>Commit Continuity Bias</em> (penalties on maternity pauses).
                   </span>
                 </div>
 
-                <button
-                  onClick={handleRunAudit}
-                  disabled={loadingAudit}
-                  className="w-full bg-[#0071e3] hover:bg-[#0077ed] disabled:opacity-50 text-white font-medium text-xs py-3 rounded-full transition shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {loadingAudit ? (
+                {/* 2. Portfolio URL */}
+                <div className="space-y-2">
+                  <label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                    Live Website / Portfolio URL
+                  </label>
+                  <input
+                    type="text"
+                    value={portfolioUrl}
+                    onChange={(e) => setPortfolioUrl(e.target.value)}
+                    placeholder="https://portfolio.dev"
+                    className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                  />
+                  <span className="text-[10px] text-slate-500 block">
+                    Verifies genuine live deployment, SSL certificate, and accessibility.
+                  </span>
+                </div>
+
+                {/* 3. Company Pedigree */}
+                <div className="space-y-2">
+                  <label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                    Past / Current Company Background
+                  </label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="e.g. TCS / Local Tech Startup / Google"
+                    className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                  />
+                  <span className="text-[10px] text-slate-500 block">
+                    Tests if hiring models apply unearned negative bias to candidates from non-FAANG / IT service firms.
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button
+                onClick={handleRunMultiSourceAudit}
+                disabled={loadingExternalAudit}
+                className="w-full bg-[#0071e3] hover:bg-[#0077ed] disabled:opacity-50 text-white font-medium text-xs py-3 rounded-full transition shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {loadingExternalAudit ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    Verifying GitHub Repos, Live Website &amp; Company Pedigree...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    Run Multi-Signal External Audit
+                  </>
+                )}
+              </button>
+
+              {/* External Audit Results Cards */}
+              {externalAuditResult && (
+                <div className="space-y-4 pt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    
+                    {/* Card 1: GitHub Code Audit */}
+                    {externalAuditResult.githubAudit && (
+                      <div className="p-4 rounded-2xl bg-[#12141d] border border-white/[0.08] space-y-2.5">
+                        <div className="flex justify-between items-center border-b border-white/[0.06] pb-2">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <GitBranch className="w-3.5 h-3.5 text-blue-400" /> GitHub Code Signals
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            Verified
+                          </span>
+                        </div>
+                        <div className="text-xs space-y-1">
+                          <div className="flex justify-between text-slate-400">
+                            <span>Profile/Repo:</span>
+                            <span className="text-white font-mono">{externalAuditResult.githubAudit.profile}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-400">
+                            <span>Top Languages:</span>
+                            <span className="text-white">{externalAuditResult.githubAudit.primaryLanguages?.join(', ') || 'TypeScript'}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-400">
+                            <span>Consistency Score:</span>
+                            <span className="text-emerald-400 font-bold">{externalAuditResult.githubAudit.codeSignals?.commitConsistencyScore}/100</span>
+                          </div>
+                        </div>
+
+                        {/* Bias Alert on GitHub */}
+                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200">
+                          <strong className="block text-amber-300 font-semibold mb-0.5">
+                            {externalAuditResult.githubAudit.algorithmicBiasRisk?.biasType}
+                          </strong>
+                          <span>{externalAuditResult.githubAudit.algorithmicBiasRisk?.description}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Card 2: Live Website Audit */}
+                    {externalAuditResult.websiteAudit && (
+                      <div className="p-4 rounded-2xl bg-[#12141d] border border-white/[0.08] space-y-2.5">
+                        <div className="flex justify-between items-center border-b border-white/[0.06] pb-2">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <Globe className="w-3.5 h-3.5 text-indigo-400" /> Live Web Verification
+                          </span>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                            externalAuditResult.websiteAudit.isOnline 
+                              ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
+                              : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                          }`}>
+                            {externalAuditResult.websiteAudit.isOnline ? 'ONLINE' : 'OFFLINE'}
+                          </span>
+                        </div>
+                        <div className="text-xs space-y-1">
+                          <div className="flex justify-between text-slate-400">
+                            <span>Domain:</span>
+                            <span className="text-white font-mono truncate max-w-[150px]">{externalAuditResult.websiteAudit.url}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-400">
+                            <span>SSL Encrypted:</span>
+                            <span className="text-emerald-400 font-bold">{externalAuditResult.websiteAudit.sslEncrypted ? 'Yes (HTTPS)' : 'No'}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-400">
+                            <span>Latency:</span>
+                            <span className="text-white font-mono">{externalAuditResult.websiteAudit.estimatedLatencyMs} ms</span>
+                          </div>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[11px] text-slate-300">
+                          <span className="block text-white font-medium mb-0.5">Verification Verdict:</span>
+                          <span>{externalAuditResult.websiteAudit.verificationVerdict}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Card 3: Company Pedigree Bias */}
+                    {externalAuditResult.companyPedigreeAudit && (
+                      <div className="p-4 rounded-2xl bg-[#12141d] border border-white/[0.08] space-y-2.5">
+                        <div className="flex justify-between items-center border-b border-white/[0.06] pb-2">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-emerald-400" /> Company Pedigree Bias
+                          </span>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                            externalAuditResult.companyPedigreeAudit.pedigreePenaltyRisk === 'HIGH'
+                              ? 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                              : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                          }`}>
+                            {externalAuditResult.companyPedigreeAudit.pedigreePenaltyRisk}
+                          </span>
+                        </div>
+                        <div className="text-xs space-y-1">
+                          <div className="flex justify-between text-slate-400">
+                            <span>Evaluated Employer:</span>
+                            <span className="text-white font-medium">{externalAuditResult.companyPedigreeAudit.evaluatedCompany}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-400">
+                            <span>Target Role:</span>
+                            <span className="text-white">{externalAuditResult.companyPedigreeAudit.targetRole}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-200">
+                          <strong className="block text-rose-300 font-semibold mb-0.5">ATS Filter Finding:</strong>
+                          <span>{externalAuditResult.companyPedigreeAudit.detailedFinding}</span>
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+
+                  {/* Recommendation action */}
+                  <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200 flex items-center justify-between">
+                    <span>
+                      External multi-signal verification complete. These metrics have been recorded and will be included in the exported audit PDF certificate.
+                    </span>
+                    <button
+                      onClick={handleRunAudit}
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-1.5 rounded-full transition whitespace-nowrap cursor-pointer"
+                    >
+                      Audit with NVIDIA Nemotron
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SUB-PANEL 3: THE DIRECT EDITABLE CANDIDATE FORM (Default / Always available) */}
+          {(domain === 'lending' || hiringMode === 'direct') && (
+            <div className="p-6 sm:p-8 rounded-3xl bg-[#0b0d14] border border-white/[0.08] space-y-6 shadow-xl">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {/* Column 1: Identity & Demographics */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-blue-400" /> 1. Applicant Profile
+                    </span>
+                    <span className="text-[10px] text-slate-500">Demographic Markers</span>
+                  </div>
+                  
+                  <div>
+                    <label className="text-xs text-slate-300 block mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      value={applicant.full_name}
+                      onChange={(e) => setApplicant({ ...applicant, full_name: e.target.value })}
+                      className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-1">Gender</label>
+                      <select
+                        value={applicant.gender}
+                        onChange={(e) => setApplicant({ ...applicant, gender: e.target.value })}
+                        className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                      >
+                        <option value="Female">Female</option>
+                        <option value="Male">Male</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-1">Age</label>
+                      <input
+                        type="number"
+                        value={applicant.age}
+                        onChange={(e) => setApplicant({ ...applicant, age: parseInt(e.target.value) || 28 })}
+                        className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-300 block mb-1">
+                      {domain === 'hiring' ? 'College / University Tier' : 'Geographical Location Tier'}
+                    </label>
+                    <select
+                      value={domain === 'hiring' ? applicant.college_tier : applicant.tier_location}
+                      onChange={(e) => {
+                        if (domain === 'hiring') setApplicant({ ...applicant, college_tier: e.target.value });
+                        else setApplicant({ ...applicant, tier_location: e.target.value });
+                      }}
+                      className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition"
+                    >
+                      {domain === 'hiring' ? (
+                        <>
+                          <option value="Tier 1 (IIT/NIT/BITS)">Tier 1 (IIT/NIT/BITS)</option>
+                          <option value="Tier 2 (Top State University)">Tier 2 (Top State University)</option>
+                          <option value="Tier 3 (Local College)">Tier 3 (Local Affiliated College)</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="Tier 1 (Metro)">Tier 1 (Metro)</option>
+                          <option value="Tier 2 (Emerging)">Tier 2 (Emerging City)</option>
+                          <option value="Tier 3 (Rural/Semi-urban)">Tier 3 (Rural / Semi-urban)</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Column 2: Merits & Financials */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1">
+                      <Scale className="w-3.5 h-3.5 text-indigo-400" /> 2. Merit &amp; Qualifications
+                    </span>
+                    <span className="text-[10px] text-slate-500">Objective Competency</span>
+                  </div>
+
+                  {domain === 'hiring' ? (
                     <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Auditing via NVIDIA Nemotron...
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-slate-300 block mb-1">Technical Skills Score (0-100)</label>
+                          <input
+                            type="number"
+                            value={applicant.skills_score}
+                            onChange={(e) => setApplicant({ ...applicant, skills_score: parseInt(e.target.value) || 80 })}
+                            className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-300 block mb-1">Experience (Years)</label>
+                          <input
+                            type="number"
+                            value={applicant.years_exp}
+                            onChange={(e) => setApplicant({ ...applicant, years_exp: parseFloat(e.target.value) || 4 })}
+                            className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-slate-300 block mb-1">Career Break (Months)</label>
+                        <input
+                          type="number"
+                          value={applicant.career_break_months}
+                          onChange={(e) => setApplicant({ ...applicant, career_break_months: parseInt(e.target.value) || 0 })}
+                          className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                        />
+                        <span className="text-[10px] text-slate-500 block mt-1">
+                          Tests if the model unfairly discounts maternity/caregiving leaves.
+                        </span>
+                      </div>
                     </>
                   ) : (
                     <>
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      Run NVIDIA AI Audit on This Applicant
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-slate-300 block mb-1">Credit Score (300-850)</label>
+                          <input
+                            type="number"
+                            value={applicant.credit_score}
+                            onChange={(e) => setApplicant({ ...applicant, credit_score: parseInt(e.target.value) || 700 })}
+                            className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-300 block mb-1">Annual Income (₹)</label>
+                          <input
+                            type="number"
+                            value={applicant.annual_income_inr}
+                            onChange={(e) => setApplicant({ ...applicant, annual_income_inr: parseInt(e.target.value) || 1000000 })}
+                            className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-slate-300 block mb-1">Loan Amount (₹)</label>
+                          <input
+                            type="number"
+                            value={applicant.loan_amount_inr}
+                            onChange={(e) => setApplicant({ ...applicant, loan_amount_inr: parseInt(e.target.value) || 500000 })}
+                            className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-300 block mb-1">Debt-to-Income (DTI)</label>
+                          <input
+                            type="number"
+                            step="0.05"
+                            value={applicant.debt_to_income}
+                            onChange={(e) => setApplicant({ ...applicant, debt_to_income: parseFloat(e.target.value) || 0.3 })}
+                            className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                          />
+                        </div>
+                      </div>
                     </>
                   )}
-                </button>
+                </div>
+
+                {/* Column 3: Free-Text Context & DPDP Scan */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1">
+                      <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" /> 3. Text Context &amp; Privacy
+                    </span>
+                    <span className="text-[10px] text-slate-500">DPDP Act Section 6 &amp; 8</span>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-300 block mb-1">
+                      {domain === 'hiring' ? 'Candidate Resume Snippet' : 'Credit Application Notes'}
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={applicant.notes}
+                      onChange={(e) => setApplicant({ ...applicant, notes: e.target.value })}
+                      className="w-full bg-[#12141d] border border-white/[0.1] rounded-xl p-3 text-xs text-slate-300 focus:outline-none focus:border-blue-500 font-mono transition"
+                      placeholder="Enter resume text or application notes..."
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      Includes sensitive identifiers (Aadhaar UID, marital status) to test privacy redaction.
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={handleRunAudit}
+                    disabled={loadingAudit}
+                    className="w-full bg-[#0071e3] hover:bg-[#0077ed] disabled:opacity-50 text-white font-medium text-xs py-3 rounded-full transition shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {loadingAudit ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Auditing via NVIDIA Nemotron...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        Run NVIDIA AI Audit on This Applicant
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* STEP 2 RESULTS: DUAL-EVALUATION & TWIN COMPARISON */}
           {nvidiaResult && (
@@ -857,7 +1431,7 @@ export default function Home() {
                         </span>
                         <button
                           onClick={() => setShowChainOfThought(!showChainOfThought)}
-                          className="text-[10px] text-slate-400 hover:text-slate-200 transition"
+                          className="text-[10px] text-slate-400 hover:text-slate-200 transition cursor-pointer"
                         >
                           {showChainOfThought ? 'Collapse' : 'Expand'}
                         </button>
