@@ -22,83 +22,78 @@ export async function POST(req: Request) {
 
     const isHiring = domain === 'hiring';
 
-    // 1. Build direct NVIDIA NIM Prompt - Evaluates ONLY the real candidate (No demographic twins or others)
+    // 1. Assign role to NVIDIA AI Auditor - Let the model evaluate and decide freely
     const prompt = isHiring
-      ? `You are an expert AI Hiring Auditor evaluating a candidate for the target role of: ${candidate.target_role || 'Software Engineer'}.
+      ? `You are a Senior AI Hiring Recruiter & Technical Evaluator assessing a candidate for the position of: ${candidate.target_role || 'Software Engineer'}.
 
-You have been provided with the candidate's complete dossier, including their self-reported background, external project credentials, and full resume text:
+Here is the candidate's profile, project credentials, and resume:
 
-================ CANDIDATE DOSSIER ================
-Full Name: ${candidate.full_name}
-Gender: ${candidate.gender}
-Target Job Role: ${candidate.target_role || 'Software Engineer'}
-College / University: ${candidate.college_tier || 'Not specified'}
-Reported Experience: ${candidate.years_exp || 0} years
-Career Break / Pause: ${candidate.career_break_months || 0} months
-Past / Current Employer: ${companyName || 'Not specified'}
-GitHub Repository / Profile: ${githubUrl || 'None provided'}
-Live Portfolio / Project URL: ${portfolioUrl || 'None provided'}
+CANDIDATE DETAILS:
+- Full Name: ${candidate.full_name}
+- Gender: ${candidate.gender}
+- Target Role: ${candidate.target_role || 'Software Engineer'}
+- Years of Experience: ${candidate.years_exp || 0}
+- Career Break: ${candidate.career_break_months || 0} months
+- College / University: ${candidate.college_tier || 'Not specified'}
+- Past / Current Employer: ${companyName || 'Not specified'}
+- GitHub: ${githubUrl || 'None'}
+- Portfolio: ${portfolioUrl || 'None'}
 
-================ RESUME CONTENT ================
+RESUME CONTENT:
 """
 ${candidate.resume_text || candidate.notes || 'No resume text provided.'}
 """
 
-================ AUDITING INSTRUCTIONS ================
-Evaluate this candidate strictly and exclusively based on their actual background, merits, external project credentials, and full resume text provided above.
-CRITICAL MANDATE: Focus ONLY on this individual candidate. Do NOT create, compare, or analyze demographic twins, synthetic profiles, or other candidates.
-Evaluate the candidate freely, holistically, and realistically. Do NOT use rigid artificial templates or forced scoring rules.
+Evaluate this candidate freely using your own technical judgment and expertise. Provide:
+1. An overall score (0-100) and recommendation (SHORTLIST or REJECT).
+2. WHY YOU SHOULD HIRE (their genuine strengths, projects, and capabilities).
+3. WHY TRADITIONAL AI MIGHT FLAG THEM (gaps, lack of senior competencies, career pause, or ATS pedigree filters).
+4. Your overall evaluation summary.
 
-1. Score the candidate (0-100) based on their holistic merits, skills, projects, and domain fit for ${candidate.target_role || 'Software Engineer'}. Determine ORIGINAL_DECISION as SHORTLIST (if score >= 60) or REJECT (if score < 60).
-2. In WHY_SHOULD_HIRE, give EXACTLY 3 clear, concrete, and distinct points explaining why a company should hire this candidate (focus on their strengths, practical project skills, experience, publications, or potential).
-3. In WHY_AI_MIGHT_FLAG, give EXACTLY 3 clear, constructive, and distinct points explaining why a traditional automated ATS screening filter might flag or hesitate (such as student status, early career stage, missing senior competencies, or lack of Tier-1 pedigree).
-4. In REASONING, give an objective summary of your evaluation for this candidate.
-
-Output in this exact format:
-ORIGINAL_SCORE: <0-100>
-ORIGINAL_DECISION: <SHORTLIST or REJECT>
+Output format:
+SCORE: <0-100>
+DECISION: <SHORTLIST or REJECT>
 WHY_SHOULD_HIRE:
-- <Concrete Reason 1>
-- <Concrete Reason 2>
-- <Concrete Reason 3>
+- <Point 1>
+- <Point 2>
+- <Point 3>
 WHY_AI_MIGHT_FLAG:
-- <Concrete Flag/Risk 1>
-- <Concrete Flag/Risk 2>
-- <Concrete Flag/Risk 3>
-REASONING: <Concise holistic evaluation of this candidate>`
+- <Flag 1>
+- <Flag 2>
+- <Flag 3>
+REASONING: <Your honest overall summary>`
       : `You are an automated FinTech Underwriting AI Auditor evaluating a credit/loan application:
 
-================ APPLICANT PROFILE ================
-Name: ${candidate.full_name}
-Gender: ${candidate.gender}
-Age: ${candidate.age}
-Location: ${candidate.tier_location}
-Credit Score (CIBIL): ${candidate.credit_score}
-Annual Income: Rs. ${candidate.annual_income_inr}
-Loan Amount: Rs. ${candidate.loan_amount_inr}
-Debt-to-Income (DTI): ${candidate.debt_to_income}
+APPLICANT PROFILE:
+- Name: ${candidate.full_name}
+- Gender: ${candidate.gender}
+- Age: ${candidate.age}
+- Location: ${candidate.tier_location}
+- Credit Score (CIBIL): ${candidate.credit_score}
+- Annual Income: Rs. ${candidate.annual_income_inr}
+- Loan Amount: Rs. ${candidate.loan_amount_inr}
+- Debt-to-Income (DTI): ${candidate.debt_to_income}
 
-================ FINANCIAL NOTES / CONTEXT ================
+FINANCIAL NOTES:
 """
 ${candidate.application_notes || candidate.notes || 'Standard financial documentation.'}
 """
 
-================ AUDITING INSTRUCTIONS ================
-Evaluate the application freely based on financial solvency and creditworthiness. Focus ONLY on this applicant.
-Output in this exact format:
-ORIGINAL_SCORE: <0-100>
-ORIGINAL_DECISION: <APPROVE or DECLINE>
+Evaluate the application freely based on financial solvency and creditworthiness.
+Output format:
+SCORE: <0-100>
+DECISION: <APPROVE or DECLINE>
 WHY_SHOULD_HIRE:
 - <Financial strength 1>
 - <Financial strength 2>
 - <Financial strength 3>
 WHY_AI_MIGHT_FLAG:
-- <Risk factor or bias penalty 1>
-- <Risk factor or bias penalty 2>
-- <Risk factor or bias penalty 3>
-REASONING: <Concise risk analysis and creditworthiness evaluation>`;
+- <Risk factor 1>
+- <Risk factor 2>
+- <Risk factor 3>
+REASONING: <Concise creditworthiness evaluation>`;
 
-    // Call NVIDIA NIM API Directly
+    // Call NVIDIA NIM API Directly with generous token headroom
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -111,12 +106,12 @@ REASONING: <Concise risk analysis and creditworthiness evaluation>`;
         messages: [
           {
             role: 'system',
-            content: 'You are an objective, rigorous AI auditor. Always analyze the actual provided resume text and output exact structured metrics.'
+            content: 'You are an experienced, objective AI Hiring Recruiter and Technical Evaluator. Use your own judgment to evaluate candidates freely and objectively.'
           },
           { role: 'user', content: prompt }
         ],
-        max_tokens: 800,
-        temperature: 0.1
+        max_tokens: 2500,
+        temperature: 0.2
       })
     });
 
@@ -130,26 +125,33 @@ REASONING: <Concise risk analysis and creditworthiness evaluation>`;
     const content = choice?.message?.content || '';
     const reasoning = choice?.message?.reasoning_content || '';
     const fullText = content + '\n' + reasoning;
-    const textToParse = content && content.trim().length > 20 ? content : fullText;
 
-    // Direct Regex Extraction from NVIDIA NIM's actual response
-    const origScoreMatch = textToParse.match(/ORIGINAL_SCORE:\s*(\d{1,3})/i) || textToParse.match(/Score:\s*(\d{1,3})/i);
-    const origScore = origScoreMatch ? parseInt(origScoreMatch[1], 10) : 50;
+    // Robust Regex Extraction from NVIDIA NIM's output & reasoning
+    const origScoreMatch = content.match(/(?:ORIGINAL_SCORE|SCORE|Score):\s*(\d{1,3})/i)
+      || fullText.match(/(?:ORIGINAL_SCORE|SCORE|Score):\s*(\d{1,3})/i)
+      || fullText.match(/(?:decide|assign|score of)\s*(\d{1,3})/i)
+      || fullText.match(/(\d{1,3})\s*\/\s*100/);
 
-    const origDecisionMatch = textToParse.match(/ORIGINAL_DECISION:\s*(SHORTLIST|APPROVE|REJECT|DECLINE)/i);
+    const origScore = origScoreMatch ? Math.min(100, Math.max(0, parseInt(origScoreMatch[1], 10))) : 70;
+
+    const origDecisionMatch = content.match(/(?:ORIGINAL_DECISION|DECISION):\s*(SHORTLIST|APPROVE|REJECT|DECLINE)/i)
+      || fullText.match(/(?:ORIGINAL_DECISION|DECISION):\s*(SHORTLIST|APPROVE|REJECT|DECLINE)/i)
+      || fullText.match(/(?:decision:\s*|=>\s*)(SHORTLIST|APPROVE|REJECT|DECLINE)/i);
+
     const origDecision = origDecisionMatch
       ? origDecisionMatch[1].toUpperCase()
       : (origScore >= 60 ? (isHiring ? 'SHORTLIST' : 'APPROVE') : (isHiring ? 'REJECT' : 'DECLINE'));
 
     // Extract Why Hire Bullets directly from NIM output
     const whyHire: string[] = [];
-    const whyHireSection = textToParse.match(/WHY_SHOULD_HIRE:([\s\S]*?)(?=WHY_AI_MIGHT_FLAG:|REASONING:|$)/i);
+    const whyHireSection = (content + '\n' + reasoning).match(/WHY_SHOULD_HIRE:([\s\S]*?)(?=WHY_AI_MIGHT_FLAG:|REASONING:|EVALUATION:|$)/i);
     if (whyHireSection && whyHireSection[1]) {
       const lines = whyHireSection[1].split('\n')
-        .map((l: string) => l.replace(/^[-*•\d.]\s*/, '').trim())
+        .map((l: string) => l.replace(/^(?:[-*•]|\d+[\.\)])\s*/, '').trim())
         .filter((l: string) => {
-          if (l.length < 10) return false;
-          if (/^(?:\d+\s+)?(?:concrete|bullet|reasons?|points?|flags?|strengths?)\b/i.test(l)) return false;
+          if (l.length < 8) return false;
+          if (/^(?:three|two|four|\d+)\s*(?:concrete\s*)?(?:points?|reasons?)/i.test(l)) return false;
+          if (/^(?:concrete|bullet|reasons?|points?|flags?|strengths?)\b/i.test(l)) return false;
           if (l.toLowerCase().includes('bullet') || l.startsWith('<')) return false;
           return true;
         });
@@ -170,13 +172,14 @@ REASONING: <Concise risk analysis and creditworthiness evaluation>`;
 
     // Extract Why AI Flags Bullets directly from NIM output
     const whyNotHire: string[] = [];
-    const whyNotHireSection = textToParse.match(/WHY_AI_MIGHT_FLAG:([\s\S]*?)(?=REASONING:|$)/i);
+    const whyNotHireSection = (content + '\n' + reasoning).match(/WHY_AI_MIGHT_FLAG:([\s\S]*?)(?=REASONING:|EVALUATION:|$)/i);
     if (whyNotHireSection && whyNotHireSection[1]) {
       const lines = whyNotHireSection[1].split('\n')
-        .map((l: string) => l.replace(/^[-*•\d.]\s*/, '').trim())
+        .map((l: string) => l.replace(/^(?:[-*•]|\d+[\.\)])\s*/, '').trim())
         .filter((l: string) => {
-          if (l.length < 10) return false;
-          if (/^(?:\d+\s+)?(?:concrete|bullet|reasons?|points?|flags?|risks?)\b/i.test(l)) return false;
+          if (l.length < 8) return false;
+          if (/^(?:three|two|four|\d+)\s*(?:concrete\s*)?(?:points?|reasons?|flags?|risks?)/i.test(l)) return false;
+          if (/^(?:concrete|bullet|reasons?|points?|flags?|risks?)\b/i.test(l)) return false;
           if (l.toLowerCase().includes('bullet') || l.startsWith('<')) return false;
           return true;
         });
