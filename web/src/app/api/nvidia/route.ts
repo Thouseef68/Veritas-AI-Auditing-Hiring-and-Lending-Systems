@@ -197,7 +197,12 @@ REASONING: <Concise risk analysis and whether location caused unfair disparity>`
     if (whyHireSection && whyHireSection[1]) {
       const lines = whyHireSection[1].split('\n')
         .map((l: string) => l.replace(/^[-*•\d.]\s*/, '').trim())
-        .filter((l: string) => l.length > 5 && !l.toLowerCase().includes('bullet') && !l.startsWith('<'));
+        .filter((l: string) => {
+          if (l.length < 10) return false;
+          if (/^(?:\d+\s+)?(?:concrete|bullet|reasons?|points?|flags?|strengths?)\b/i.test(l)) return false;
+          if (l.toLowerCase().includes('bullet') || l.startsWith('<')) return false;
+          return true;
+        });
       whyHire.push(...lines.slice(0, 3));
     }
     // Ensure 3 clear points
@@ -219,7 +224,12 @@ REASONING: <Concise risk analysis and whether location caused unfair disparity>`
     if (whyNotHireSection && whyNotHireSection[1]) {
       const lines = whyNotHireSection[1].split('\n')
         .map((l: string) => l.replace(/^[-*•\d.]\s*/, '').trim())
-        .filter((l: string) => l.length > 5 && !l.toLowerCase().includes('bullet') && !l.startsWith('<'));
+        .filter((l: string) => {
+          if (l.length < 10) return false;
+          if (/^(?:\d+\s+)?(?:concrete|bullet|reasons?|points?|flags?|risks?)\b/i.test(l)) return false;
+          if (l.toLowerCase().includes('bullet') || l.startsWith('<')) return false;
+          return true;
+        });
       whyNotHire.push(...lines.slice(0, 3));
     }
     // Ensure 3 clear points
