@@ -307,7 +307,7 @@ export default function Home() {
         })
       }).then(r => r.json()).catch(() => null);
 
-      // 2. Direct NVIDIA Nemotron Ultra 550B Evaluation
+      // 2. Direct NVIDIA Nemotron 3.5 30B Evaluation
       const nvidiaPromise = fetch('/api/nvidia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -320,7 +320,7 @@ export default function Home() {
           githubUrl: hiringApplicant.github,
           portfolioUrl: hiringApplicant.portfolio,
           companyName: hiringApplicant.employer,
-          model: 'nvidia/nemotron-3-ultra-550b-a55b'
+          model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       }).then(r => r.json());
 
@@ -341,7 +341,7 @@ export default function Home() {
     try {
       const dtiRatio = ((lendingApplicant.monthly_obligations_inr / (lendingApplicant.monthly_income_inr || 1)) * 100).toFixed(1) + '%';
 
-      // Direct NVIDIA Nemotron Ultra 550B Financial Solvency Evaluation
+      // Direct NVIDIA Nemotron 3.5 30B Financial Solvency Evaluation
       const res = await fetch('/api/nvidia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -354,7 +354,7 @@ export default function Home() {
           },
           domain: 'lending',
           companyName: lendingApplicant.employer,
-          model: 'nvidia/nemotron-3-ultra-550b-a55b'
+          model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       });
 
@@ -399,7 +399,7 @@ export default function Home() {
           domain: 'hiring',
           targetRole: updatedApplicant.target_role,
           companyName: updatedApplicant.employer,
-          model: 'nvidia/nemotron-3-ultra-550b-a55b'
+          model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       });
 
@@ -440,7 +440,7 @@ export default function Home() {
           },
           domain: 'lending',
           companyName: updatedApplicant.employer,
-          model: 'nvidia/nemotron-3-ultra-550b-a55b'
+          model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       });
 
@@ -478,7 +478,7 @@ export default function Home() {
 
     const scoreVal = nvidiaRes?.originalEvaluation?.score ?? (isH ? 70 : 75);
     const decisionVal = nvidiaRes?.originalEvaluation?.decision ?? (isH ? 'SHORTLIST' : 'APPROVE');
-    const modelName = nvidiaRes?.model || 'nvidia/nemotron-3-ultra-550b-a55b';
+    const modelName = nvidiaRes?.model || 'nvidia/nemotron-3.5-lightning-30b-a3b';
 
     let y = 16;
     const divider = '================================================================================';
@@ -530,7 +530,7 @@ export default function Home() {
     printLine('CONTENTS');
     printLine('   1.  Executive Summary and Final Determination');
     printLine('   2.  Subject Identity and Application Dossier');
-    printLine('   3.  AI Analyst Findings (Decision-Making Layer - NVIDIA Nemotron 550B)');
+    printLine('   3.  AI Analyst Findings (Decision-Making Layer - NVIDIA Nemotron 3.5 30B)');
     printLine('   4.  Fairness & Governance Audit Report (Bias, Hallucination, Privacy, Fairness)');
     printLine('   5.  Detailed Merit Breakdown & Verified Competencies');
     printLine('   6.  Indicators and Algorithmic Flags Raised');
@@ -568,7 +568,7 @@ export default function Home() {
 
     printLine('Decision basis');
     printLine('--------------');
-    printWrapped('Every application dossier is evaluated by an autonomous AI auditor running on the NVIDIA Nemotron 550B model. The auditor examines verified repository footprints, deployment health, 15-30 day cash flow metrics, and complete application notes. The final determination serves as statutory advisory counsel under EU AI Act Article 14 and India DPDP guidelines, retaining human hiring manager / credit officer override authority.');
+    printWrapped('Every application dossier is evaluated by an autonomous AI auditor running on the NVIDIA Nemotron 3.5 30B model. The auditor examines verified repository footprints, deployment health, 15-30 day cash flow metrics, and complete application notes. The final determination serves as statutory advisory counsel under EU AI Act Article 14 and India DPDP guidelines, retaining human hiring manager / credit officer override authority.');
     printLine();
 
     // SECTION 2
@@ -796,7 +796,7 @@ export default function Home() {
     printLine('Analysis Methodology:');
     printLine('---------------------');
     printLine('- Consolidated PDF parsing via Python pypdf with binary-marker stripping.');
-    printLine('- Algorithmic evaluation by NVIDIA Nemotron Ultra 550B flagship model.');
+    printLine('- Algorithmic evaluation by NVIDIA Nemotron 3.5 30B flagship model.');
     printLine('- External code verification of GitHub commits and live SSL deployments.');
     printLine('- Privacy auditing under India Digital Personal Data Protection (DPDP) Act, 2023.');
     printLine('- Human-in-the-loop oversight execution under EU AI Act Article 14.');
@@ -844,7 +844,7 @@ export default function Home() {
               <span className="font-bold text-sm tracking-tight text-white flex items-center gap-1.5">
                 VERITAS AI
                 <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  Ultra 550B
+                  Nemotron 3.5 30B
                 </span>
               </span>
               <p className="text-[10px] text-slate-400 hidden sm:block">AI Auditor for Hiring &amp; Lending</p>
@@ -902,7 +902,7 @@ export default function Home() {
                   Talent Acquisition &amp; Resume Bias Audit
                 </h1>
                 <p className="text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
-                  Collect candidate credentials, analyze public code &amp; live portfolios, extract full resume text, and expose pedigree or maternity gap penalties using NVIDIA Nemotron 550B.
+                  Collect candidate credentials, analyze public code &amp; live portfolios, extract full resume text, and expose pedigree or maternity gap penalties using NVIDIA Nemotron 3.5 30B.
                 </p>
               </div>
 
@@ -1136,12 +1136,12 @@ export default function Home() {
                   {hiringLoading ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      Evaluating Candidate via NVIDIA Nemotron Ultra 550B...
+                      Evaluating Candidate via NVIDIA Nemotron 3.5 30B...
                     </>
                   ) : (
                     <>
                       <Play className="w-4 h-4 fill-current" />
-                      Run Candidate Audit (NVIDIA Nemotron Ultra 550B)
+                      Run Candidate Audit (NVIDIA Nemotron 3.5 30B)
                     </>
                   )}
                 </button>
@@ -1190,7 +1190,7 @@ export default function Home() {
                         AUTONOMOUS SCREENING DECISION: {hiringNvidiaResult.originalEvaluation?.decision}
                       </h4>
                       <p className="text-xs opacity-90 mt-1 leading-relaxed">
-                        Evaluated by <strong>NVIDIA Nemotron Ultra 550B</strong> based on real-world engineering project proof, code repositories, and complete resume text.
+                        Evaluated by <strong>NVIDIA Nemotron 3.5 30B</strong> based on real-world engineering project proof, code repositories, and complete resume text.
                       </p>
                       <span className="text-[11px] text-slate-400 block mt-1">
                         {hiringNvidiaResult.originalEvaluation?.decision === 'SHORTLIST'
@@ -1297,7 +1297,7 @@ export default function Home() {
                     </div>
                     <div className="flex items-center gap-2 self-start sm:self-auto">
                       <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20 font-semibold">
-                        NVIDIA Nemotron 550B Audit
+                        NVIDIA Nemotron 3.5 30B Audit
                       </span>
                     </div>
                   </div>
@@ -1610,7 +1610,7 @@ export default function Home() {
                       className="text-xs text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5 cursor-pointer"
                     >
                       <Cpu className="w-3.5 h-3.5 text-blue-400" />
-                      <span>{showChainOfThought ? 'Hide' : 'Inspect'} NVIDIA Nemotron 550B Inner Reasoning Trace</span>
+                      <span>{showChainOfThought ? 'Hide' : 'Inspect'} NVIDIA Nemotron 3.5 30B Inner Reasoning Trace</span>
                     </button>
                     {showChainOfThought && (
                       <pre className="mt-2 text-[11px] text-slate-400 bg-[#07090e] p-4 rounded-2xl border border-white/[0.08] font-mono whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">
@@ -1935,12 +1935,12 @@ export default function Home() {
                   {lendingLoading ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      Auditing Credit Solvency via NVIDIA Nemotron Ultra 550B...
+                      Auditing Credit Solvency via NVIDIA Nemotron 3.5 30B...
                     </>
                   ) : (
                     <>
                       <Play className="w-4 h-4 fill-current" />
-                      Run Credit Underwriting Audit (NVIDIA Nemotron Ultra 550B)
+                      Run Credit Underwriting Audit (NVIDIA Nemotron 3.5 30B)
                     </>
                   )}
                 </button>
@@ -1989,7 +1989,7 @@ export default function Home() {
                         UNDERWRITING RECOMMENDATION: {lendingNvidiaResult.originalEvaluation?.decision}
                       </h4>
                       <p className="text-xs opacity-90 mt-1 leading-relaxed">
-                        Evaluated by <strong>NVIDIA Nemotron Ultra 550B</strong> based on solvency, CIBIL discipline ({lendingApplicant.credit_score}), DTI ratio, and statement cash flows.
+                        Evaluated by <strong>NVIDIA Nemotron 3.5 30B</strong> based on solvency, CIBIL discipline ({lendingApplicant.credit_score}), DTI ratio, and statement cash flows.
                       </p>
                       <span className="text-[11px] text-slate-400 block mt-1">
                         {lendingNvidiaResult.originalEvaluation?.decision === 'APPROVE'
@@ -2096,7 +2096,7 @@ export default function Home() {
                     </div>
                     <div className="flex items-center gap-2 self-start sm:self-auto">
                       <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-teal-500/10 text-teal-300 border border-teal-500/20 font-semibold">
-                        NVIDIA Nemotron 550B Audit
+                        NVIDIA Nemotron 3.5 30B Audit
                       </span>
                     </div>
                   </div>
@@ -2409,7 +2409,7 @@ export default function Home() {
                       className="text-xs text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5 cursor-pointer"
                     >
                       <Cpu className="w-3.5 h-3.5 text-teal-400" />
-                      <span>{showChainOfThought ? 'Hide' : 'Inspect'} NVIDIA Nemotron 550B Underwriting Reasoning Trace</span>
+                      <span>{showChainOfThought ? 'Hide' : 'Inspect'} NVIDIA Nemotron 3.5 30B Underwriting Reasoning Trace</span>
                     </button>
                     {showChainOfThought && (
                       <pre className="mt-2 text-[11px] text-slate-400 bg-[#07090e] p-4 rounded-2xl border border-white/[0.08] font-mono whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">
@@ -2429,7 +2429,7 @@ export default function Home() {
       {/* FOOTER */}
       {/* ========================================================= */}
       <footer className="border-t border-white/[0.08] py-8 text-center text-xs text-slate-500">
-        <p>Veritas AI — Auditing AI Systems in Hiring &amp; Lending | Powered by NVIDIA Nemotron Ultra 550B</p>
+        <p>Veritas AI — Auditing AI Systems in Hiring &amp; Lending | Powered by NVIDIA Nemotron 3.5 30B</p>
         <p className="text-[11px] text-slate-600 mt-1">Compliant with India DPDP Act (2023) Section 6 &amp; 8 and Article 14 Statutory Human Oversight Mandates</p>
       </footer>
     </div>

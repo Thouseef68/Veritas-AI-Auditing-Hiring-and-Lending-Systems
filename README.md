@@ -1,7 +1,7 @@
 # Veritas AI: Auditing Hiring and Lending Systems
 
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.4-black?logo=next.js)](https://nextjs.org/)
-[![NVIDIA NIM](https://img.shields.io/badge/NVIDIA%20NIM-Nemotron%20Ultra%20550B-76B900?logo=nvidia)](https://build.nvidia.com/)
+[![NVIDIA NIM](https://img.shields.io/badge/NVIDIA%20NIM-Nemotron%203.5%2030B-76B900?logo=nvidia)](https://build.nvidia.com/)
 [![DPDP Act 2023](https://img.shields.io/badge/India%20DPDP%20Act-2023%20Compliant-008080)](#statutory-privacy-firewall)
 [![EU AI Act](https://img.shields.io/badge/EU%20AI%20Act-Article%2014%20Human--in--the--Loop-blue)](#article-14-human-oversight)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -28,7 +28,7 @@ Both the **Hiring & Talent Audit** and **Lending & Credit Underwriting** workflo
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │ BOX 1: AUTONOMOUS SCREENING / UNDERWRITING DECISION & NIM MATCH SCORE  │
-│        - High-confidence evaluation via NVIDIA Nemotron Ultra 550B    │
+│        - High-confidence evaluation via NVIDIA Nemotron 3.5 30B       │
 │        - Objective qualification / solvency percentage score           │
 ├────────────────────────────────────────────────────────────────────────┤
 │ BOX 2: ARTICLE 14 HUMAN OVERSIGHT & FIDUCIARY DECISION EXECUTION       │
@@ -99,7 +99,7 @@ Veritas AI runs live adversarial counterfactual perturbation tests on every subm
 | Layer | Technologies |
 |---|---|
 | **Frontend & Framework** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Lucide Icons |
-| **AI & Inference Metrology** | NVIDIA NIM API (`nvidia/nemotron-3-ultra-550b-a55b` flagship reasoning model) |
+| **AI & Inference Metrology** | NVIDIA NIM API (`nvidia/nemotron-3.5-lightning-30b-a3b` high-throughput reasoning model) |
 | **Document & Evidence Engine** | Python 3 `pypdf`, native binary-marker sanitizer, jsPDF legal reporter |
 | **Statistical Metrology** | Disparate Impact Ratio ($DIR \ge 0.80$), US EEOC Four-Fifths Rule, DTI Calculations |
 | **Governance & Law** | India DPDP Act (2023), RBI Digital Lending Directions (2025), EU AI Act (Article 14) |
@@ -190,7 +190,7 @@ Hackathon-DSU/
             ├── layout.tsx         # Executive theme layout
             ├── page.tsx           # Dual-domain auditor interface (Hiring & Lending)
             └── api/
-                ├── nvidia/        # NVIDIA Nemotron 550B inference & twin-test metrology
+                ├── nvidia/        # NVIDIA Nemotron 3.5 30B inference & twin-test metrology
                 ├── external-audit/# GitHub API, portfolio SSL checks & pypdf dossier parser
                 ├── dpdp/          # Statutory DPDP Act Section 6, 8 & RBI compliance scan
                 └── audit/         # Audit report state & cryptographic ledger

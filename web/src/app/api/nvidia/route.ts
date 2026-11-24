@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || 'REDACTED_NVIDIA_API_KEY';
-const DEFAULT_MODEL = process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b';
+const DEFAULT_MODEL = process.env.NVIDIA_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b';
 const API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 
 export async function POST(req: Request) {
