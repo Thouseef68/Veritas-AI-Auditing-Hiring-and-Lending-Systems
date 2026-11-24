@@ -77,6 +77,9 @@ export default function Home() {
   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const [resumeLoading, setResumeLoading] = useState<boolean>(false);
 
+  // Human-in-the-Loop Decision State
+  const [humanDecision, setHumanDecision] = useState<'OVERRIDDEN' | 'REJECTED' | 'ESCALATED' | null>(null);
+
   // Decision Threshold for Batch Metrology
   const [threshold, setThreshold] = useState<number>(0.50);
 
@@ -126,6 +129,7 @@ export default function Home() {
 
   // Scenario Presets
   const loadScenario = (preset: string) => {
+    setHumanDecision(null);
     if (preset === 'aditi_hiring') {
       setDomain('hiring');
       setApplicant({
@@ -238,6 +242,7 @@ export default function Home() {
   // Run Unified Full Candidate Audit (NVIDIA + Multi-Signal Verification)
   const handleRunUnifiedAudit = async () => {
     setLoadingAudit(true);
+    setHumanDecision(null);
     try {
       // 1. Run Multi-signal external verification in parallel
       const externalPromise = domain === 'hiring' 
@@ -339,6 +344,7 @@ export default function Home() {
       doc.setTextColor(71, 85, 105);
       doc.text(`- Top Merit: ${nvidiaResult.whyShouldHire[0] || 'High verified technical capability'}`, 14, 168);
       doc.text(`- Algorithmic Friction: ${nvidiaResult.whyShouldNotHire[0] || 'Penalized by legacy non-merit filters'}`, 14, 174);
+      doc.text(`- Recruiter Action (Human Oversight): ${humanDecision || 'PENDING HUMAN REVIEW (ARTICLE 14 MANDATE)'}`, 14, 180);
     }
 
     // Footer
@@ -948,6 +954,133 @@ export default function Home() {
                   <span className={`text-2xl font-bold ${nvidiaResult.counterfactualTwinTest?.decisionFlipped ? 'text-rose-400' : 'text-emerald-400'}`}>
                     {nvidiaResult.counterfactualTwinTest?.disparityDelta} pts
                   </span>
+                </div>
+              </div>
+
+              {/* AUDITOR GOVERNANCE VERDICT & HUMAN-IN-THE-LOOP ACTION CARD */}
+              <div className="p-6 rounded-3xl bg-gradient-to-br from-[#101424] via-[#0c0f18] to-[#07090e] border border-blue-500/30 space-y-5 shadow-2xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.08] pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center shrink-0">
+                      <Scale className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        Auditor Governance Verdict &amp; Recruiter Decision
+                        <span className="text-[10px] font-mono bg-blue-500/10 text-blue-300 border border-blue-500/25 px-2 py-0.5 rounded-full">
+                          Article 14 Human Oversight
+                        </span>
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        The AI Auditor evaluates algorithmic fairness and provides governance counsel. The final decision rests with the human hiring manager.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Governance Recommendation Badge */}
+                  <div className="shrink-0">
+                    {nvidiaResult.counterfactualTwinTest?.decisionFlipped ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        RECOMMENDATION: OVERRIDE AI REJECTION
+                      </span>
+                    ) : nvidiaResult.originalEvaluation?.score >= 60 ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        RECOMMENDATION: CONFIRM SHORTLIST
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-500/10 text-slate-300 border border-slate-500/30">
+                        RECOMMENDATION: CONFIRM REJECTION (MERIT)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Clear Plain-English Guidance on the Verdict */}
+                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-xs text-slate-300 space-y-1.5">
+                  <strong className="text-white block font-semibold">
+                    {domain === 'hiring' ? 'Recruiter Advisory (Governance Council):' : 'Credit Officer Advisory (Underwriting Council):'}
+                  </strong>
+                  <p className="leading-relaxed">
+                    {nvidiaResult.counterfactualTwinTest?.decisionFlipped ? (
+                      domain === 'hiring' ? (
+                        <>The automated screening model rejected <strong>{applicant.full_name}</strong> due to bias against her 8-month maternity break and IT services pedigree. However, her verified skills score of <strong>{applicant.skills_score}/100</strong> and clean GitHub code qualify her for the role. <strong>The AI Auditor strongly recommends advancing this candidate to the technical round.</strong></>
+                      ) : (
+                        <>The automated underwriting model rejected <strong>{applicant.full_name}</strong> primarily due to a rural geographical risk multiplier. Her verified CIBIL score of <strong>{applicant.credit_score}</strong> and solvent debt-to-income ratio justify loan approval.</>
+                      )
+                    ) : (
+                      <>The automated model&apos;s decision aligns with objective criteria with low demographic bias detected.</>
+                    )}
+                  </p>
+                </div>
+
+                {/* Recruiter Action Buttons */}
+                <div className="space-y-2 pt-1">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 block">
+                    Take Recruiter Action (Human Oversight Execution):
+                  </span>
+                  
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => setHumanDecision('OVERRIDDEN')}
+                      className={`px-4 py-2.5 rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer ${
+                        humanDecision === 'OVERRIDDEN'
+                          ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 ring-2 ring-emerald-400'
+                          : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      ✓ Override AI &amp; Shortlist {applicant.full_name.split(' ')[0]}
+                    </button>
+
+                    <button
+                      onClick={() => setHumanDecision('REJECTED')}
+                      className={`px-4 py-2.5 rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer ${
+                        humanDecision === 'REJECTED'
+                          ? 'bg-rose-600 text-white shadow-lg shadow-rose-500/25 ring-2 ring-rose-400'
+                          : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      }`}
+                    >
+                      ✕ Confirm Rejection (Require Justification)
+                    </button>
+
+                    <button
+                      onClick={() => setHumanDecision('ESCALATED')}
+                      className={`px-4 py-2.5 rounded-full text-xs font-medium transition flex items-center gap-2 cursor-pointer ${
+                        humanDecision === 'ESCALATED'
+                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25 ring-2 ring-indigo-400'
+                          : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 border border-white/[0.1]'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      💬 Escalate to Diversity Review Committee
+                    </button>
+                  </div>
+
+                  {/* Live Action Feedback Confirmation */}
+                  {humanDecision && (
+                    <div className={`p-3.5 rounded-xl border text-xs flex items-center gap-2 mt-2 ${
+                      humanDecision === 'OVERRIDDEN'
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : humanDecision === 'REJECTED'
+                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                        : 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300'
+                    }`}>
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>
+                        {humanDecision === 'OVERRIDDEN' && (
+                          <><strong>Recruiter Action Executed:</strong> Candidate {applicant.full_name} has been manually advanced to the Technical Interview. Bias override justification logged to compliance audit trail.</>
+                        )}
+                        {humanDecision === 'REJECTED' && (
+                          <><strong>Action Recorded:</strong> Rejection confirmed. Reason logged: Objective role qualification requirement mismatch.</>
+                        )}
+                        {humanDecision === 'ESCALATED' && (
+                          <><strong>Action Recorded:</strong> Candidate profile and counterfactual twin bias telemetry forwarded to 3-member Diversity &amp; Fairness Governance Committee.</>
+                        )}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
