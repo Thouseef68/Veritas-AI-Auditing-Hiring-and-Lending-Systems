@@ -5,14 +5,16 @@ import fs from 'fs';
 
 // Robust multi-engine PDF Text Extractor (Python pypdf -> pdf-parse lib -> stream regex)
 async function extractPdfBuffer(buffer: Buffer): Promise<string> {
-  // Method 1: Python pypdf (100% reliable, no canvas/DOM errors, handles modern complex PDFs)
+  // Method 1: Python pypdf (100% reliable, handles complex compressed PDFs)
   try {
-    let scriptPath = path.resolve(process.cwd(), 'ml_engine', 'extract_pdf.py');
-    if (!fs.existsSync(scriptPath)) {
-      scriptPath = path.resolve(process.cwd(), '..', 'ml_engine', 'extract_pdf.py');
-    }
+    const candidatePaths = [
+      path.resolve(process.cwd(), 'ml_engine', 'extract_pdf.py'),
+      path.resolve(process.cwd(), '..', 'ml_engine', 'extract_pdf.py'),
+      path.resolve(__dirname, '..', '..', '..', '..', 'ml_engine', 'extract_pdf.py')
+    ];
+    const scriptPath = candidatePaths.find(p => fs.existsSync(p));
 
-    if (fs.existsSync(scriptPath)) {
+    if (scriptPath) {
       const py = spawn('python', [scriptPath]);
       let stdout = '';
       let stderr = '';
@@ -35,10 +37,10 @@ async function extractPdfBuffer(buffer: Buffer): Promise<string> {
 
       const pyResult = await Promise.race([
         pyPromise,
-        new Promise<string>((resolve) => setTimeout(() => resolve(''), 6000))
+        new Promise<string>((resolve) => setTimeout(() => resolve(''), 8000))
       ]);
 
-      if (pyResult && pyResult.length > 20) {
+      if (pyResult && pyResult.length > 20 && !pyResult.includes('%PDF-')) {
         return pyResult;
       }
     }
@@ -82,19 +84,7 @@ async function extractPdfBuffer(buffer: Buffer): Promise<string> {
     console.warn('Stream extraction error:', streamErr);
   }
 
-  // Method 4: Clean sanitized string (removes all binary markers, /K [...], %PDF, obj)
-  const fallbackStr = buffer.toString('utf-8')
-    .replace(/%PDF-[\d.]+/g, '')
-    .replace(/\/K\s*\[[\s\S]*?\]/g, '')
-    .replace(/<<[\s\S]*?>>/g, '')
-    .replace(/\b\d+\s+\d+\s+obj\b[\s\S]*?endobj/g, '')
-    .replace(/stream[\s\S]*?endstream/g, '')
-    .replace(/xref[\s\S]*?trailer/g, '')
-    .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-
-  return fallbackStr;
+  return '';
 }
 
 export async function POST(req: Request) {
@@ -160,8 +150,49 @@ export async function POST(req: Request) {
         const phoneMatch = cleanResume.match(/(?:\+91[\s-]?)?[6789]\d{9}\b/);
         const emailMatch = cleanResume.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
 
+        // Intelligent Candidate Metadata Extractor
+        const lines = cleanResume.split('\n').map(l => l.trim()).filter(Boolean);
+        let extractedName: string | null = null;
+        for (const line of lines.slice(0, 5)) {
+          if (!/^(curriculum|resume|page|contact|email|phone|https?|github)/i.test(line) && line.length < 50 && !line.includes('@')) {
+            extractedName = line.replace(/[|•,].*$/, '').trim();
+            break;
+          }
+        }
+
+        const ghMatch = cleanResume.match(/(?:github\.com\/)([a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_.-]+)?)/i);
+        const portfolioMatch = cleanResume.match(/https?:\/\/([a-zA-Z0-9.-]+\.(?:app|dev|io|me|vercel\.app|github\.io))/i)
+          || cleanResume.match(/\b([a-zA-Z0-9-]+\.vercel\.app|[a-zA-Z0-9-]+\.streamlit\.app)\b/i);
+
+        let detectedRole = '';
+        if (/machine\s*learning|ai\s*engineer|data\s*scientist/i.test(cleanResume)) {
+          detectedRole = 'Machine Learning Engineer';
+        } else if (/full\s*stack/i.test(cleanResume)) {
+          detectedRole = 'Full Stack Developer';
+        } else if (/frontend|react/i.test(cleanResume)) {
+          detectedRole = 'Frontend Engineer';
+        } else if (/backend|distributed/i.test(cleanResume)) {
+          detectedRole = 'Backend Engineer';
+        } else if (/software\s*engineer|software\s*developer/i.test(cleanResume)) {
+          detectedRole = 'Software Engineer';
+        }
+
+        let detectedCollegeTier = '';
+        if (/\b(?:iit|bits|nit|iim)\b/i.test(cleanResume)) {
+          detectedCollegeTier = 'Tier 1 (IIT / BITS / Top National)';
+        } else if (/state\s*university|dayananda|anna\s*university|vtu/i.test(cleanResume)) {
+          detectedCollegeTier = 'Tier 2 (Top State University)';
+        }
+
         results.resumeAnalysis = {
           cleanText: cleanResume.length > 20 ? cleanResume : resumeText,
+          extractedFields: {
+            fullName: extractedName,
+            github: ghMatch ? ghMatch[0] : null,
+            portfolio: portfolioMatch ? (portfolioMatch[0].startsWith('http') ? portfolioMatch[0] : 'https://' + portfolioMatch[0]) : null,
+            targetRole: detectedRole || null,
+            collegeTier: detectedCollegeTier || null
+          },
           piiExposures: {
             aadhaarFound: !!aadhaarMatch,
             aadhaarValue: aadhaarMatch ? aadhaarMatch[0] : null,
