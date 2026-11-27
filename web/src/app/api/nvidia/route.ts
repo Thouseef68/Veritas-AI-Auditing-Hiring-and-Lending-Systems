@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || 'REDACTED_NVIDIA_API_KEY';
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || process.env.NVIDIA_NIM_API_KEY || '';
 const DEFAULT_MODEL = process.env.NVIDIA_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b';
 const API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 
@@ -18,6 +18,13 @@ export async function POST(req: Request) {
 
     if (!candidate) {
       return NextResponse.json({ error: 'Candidate / applicant profile required' }, { status: 400 });
+    }
+
+    if (!NVIDIA_API_KEY) {
+      return NextResponse.json(
+        { error: 'NVIDIA_API_KEY (or NVIDIA_NIM_API_KEY) is not configured in environment variables.' },
+        { status: 500 }
+      );
     }
 
     const isHiring = domain === 'hiring';

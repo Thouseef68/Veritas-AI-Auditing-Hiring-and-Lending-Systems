@@ -9,7 +9,7 @@ import json
 import requests
 import time
 
-NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "REDACTED_NVIDIA_API_KEY")
+NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY") or os.environ.get("NVIDIA_NIM_API_KEY", "")
 NVIDIA_MODEL = os.environ.get("NVIDIA_MODEL", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning")
 API_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions"
 
