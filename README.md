@@ -2,7 +2,7 @@
 
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.4-black?logo=next.js)](https://nextjs.org/)
 [![NVIDIA NIM](https://img.shields.io/badge/NVIDIA%20NIM-Nemotron%203.5%2030B-76B900?logo=nvidia)](https://build.nvidia.com/)
-[![DPDP Act 2023](https://img.shields.io/badge/India%20DPDP%20Act-2023%20Compliant-008080)](#statutory-privacy-firewall)
+[![DPDP Act 2023](https://img.shields.io/badge/India%20DPDP%20Act-2023%20Aligned-008080)](#statutory-privacy-firewall)
 [![EU AI Act](https://img.shields.io/badge/EU%20AI%20Act-Article%2014%20Human--in--the--Loop-blue)](#article-14-human-oversight)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -89,7 +89,7 @@ Veritas AI runs live adversarial counterfactual perturbation tests on every subm
 - **Consolidated Single-PDF Dossier Ingestion**: Clean Python `pypdf` extraction engine that strips corrupted binary markers (`/K[...]`) and handles multi-document bundles (bank statements, certificates, and CIBIL reports) in a single upload.
 
 ### 6. Statutory Forensic PDF Report Generation
-- Exports a comprehensive legal-grade audit certificate compliant with **Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023** (electronic evidence admissibility).
+- Exports a tamper-evident forensic audit report designed to support electronic evidence documentation (**Section 63(4) of the Bharatiya Sakshya Adhiniyam, 2023**).
 - Includes cryptographic SHA-256 digests, officer verification tokens, Section 4 adversarial twin findings, and Section 8 DPDP statutory compliance checklists.
 
 ---
@@ -160,7 +160,7 @@ Veritas AI is optimized for zero-configuration deployment on **Vercel**:
 
 ### Step 1: Import Project in Vercel
 1. Log in to [Vercel](https://vercel.com/) and click **"Add New Project"**.
-2. Select your imported GitHub repository (`Hackathon-DSU`).
+2. Select your imported GitHub repository (`Veritas-AI-Auditing-Hiring-and-Lending-Systems`).
 
 ### Step 2: Configure Project Settings
 - **Framework Preset**: `Next.js`
@@ -181,8 +181,12 @@ Click **Deploy**. Your Veritas AI governance portal will be live with high-speed
 ## 📂 Repository Structure
 
 ```
-Hackathon-DSU/
-├── README.md                      # Comprehensive project documentation & governance reference
+Veritas-AI-Auditing-Hiring-and-Lending-Systems/
+├── README.md                      # Project documentation & governance reference
+├── LICENSE                        # MIT License
+├── pyproject.toml                 # Python packaging & dependencies
+├── tests/                         # Automated pytest suite (planted-bias, SSRF, DPDP, hash chain)
+├── .github/workflows/ci.yml       # GitHub Actions CI (pytest + tsc + next build)
 ├── .gitignore                     # Enforces zero-leakage of .env, secrets, and caches
 ├── docs/
 │   └── HACKATHON_PITCH_DECK.md    # Executive pitch outline and competition presentation deck

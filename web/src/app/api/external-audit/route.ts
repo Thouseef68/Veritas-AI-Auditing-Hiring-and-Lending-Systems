@@ -237,33 +237,35 @@ export async function POST(req: Request) {
         }
 
         const isLiveFetched = githubData !== null;
-        const reposCount = Array.isArray(githubData) ? githubData.length : (githubData?.id ? 1 : 4);
-        const topLanguages = Array.isArray(githubData) 
+        const reposCount = isLiveFetched
+          ? (Array.isArray(githubData) ? githubData.length : (githubData?.id ? 1 : 0))
+          : null;
+        const topLanguages = isLiveFetched && Array.isArray(githubData)
           ? Array.from(new Set(githubData.map((r: any) => r.language).filter(Boolean)))
-          : ['TypeScript', 'Python', 'Go'];
+          : isLiveFetched && githubData?.language
+          ? [githubData.language]
+          : [];
 
         results.githubAudit = {
           profile: username,
           targetRepo: repoName || 'Recent Repositories',
-          status: isLiveFetched ? 'VERIFIED_LIVE_API' : 'MOCKED_OR_RATE_LIMITED',
+          verificationStatus: isLiveFetched ? 'VERIFIED' : 'UNKNOWN',
           verifiedRepositories: reposCount,
           primaryLanguages: topLanguages.slice(0, 4),
-          codeSignals: {
-            commitConsistencyScore: 88,
-            documentationQuality: 'Comprehensive (README, LICENSE, CI/CD verified)',
-            openSourceContributions: 'Active contributor to open-source libraries'
-          },
+          summary: isLiveFetched
+            ? `Verified via GitHub API: ${reposCount} public repository match(es)${topLanguages.length ? ` (${topLanguages.slice(0, 3).join(', ')})` : ''}.`
+            : 'GitHub API lookup could not be verified (rate-limited, private, or unreachable).',
           algorithmicBiasRisk: {
             riskLevel: 'MEDIUM',
             biasType: 'Commit Continuity Bias (Activity Heatmap Penalty)',
-            description: 'Automated hiring bots penalize developers with periods of commit inactivity (e.g., maternity, caregiving, or enterprise NDA repos). High technical competency was demonstrated in code quality despite calendar gaps.',
-            remediation: 'Instruct ATS scrapers to evaluate code complexity and architecture rather than daily streak frequency.'
+            description: 'Automated hiring bots penalize developers with periods of commit inactivity (e.g., maternity, caregiving, or enterprise NDA repos).',
+            remediation: 'Evaluate code architecture rather than daily streak frequency.'
           }
         };
       }
     }
 
-    // 3. Live Website / Portfolio Auditing
+    // 3. Live Website / Portfolio Auditing (with SSRF guard & honest VERIFIED / FAILED / UNKNOWN states)
     if (action === 'website' || action === 'all') {
       if (portfolioUrl && portfolioUrl.trim().length > 0) {
         let cleanUrl = portfolioUrl.trim();
@@ -271,35 +273,63 @@ export async function POST(req: Request) {
           cleanUrl = 'https://' + cleanUrl;
         }
 
-        let isLive = false;
-        let responseTimeMs = 210;
-        let sslSecure = cleanUrl.startsWith('https://');
-
+        let isBlockedHost = false;
         try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 3000);
-          const headRes = await fetch(cleanUrl, { method: 'HEAD', signal: controller.signal });
-          clearTimeout(timeout);
-          isLive = headRes.ok || headRes.status < 400;
-        } catch (e) {
-          isLive = true;
-          responseTimeMs = 185;
+          const parsed = new URL(cleanUrl);
+          const h = parsed.hostname.toLowerCase();
+          if (
+            !['http:', 'https:'].includes(parsed.protocol) ||
+            h === 'localhost' ||
+            h === '127.0.0.1' ||
+            h === '::1' ||
+            h.startsWith('10.') ||
+            h.startsWith('192.168.') ||
+            h.startsWith('169.254.') ||
+            /^172\.(1[6-9]|2\d|3[0-1])\./.test(h)
+          ) {
+            isBlockedHost = true;
+          }
+        } catch {
+          isBlockedHost = true;
+        }
+
+        let verificationStatus: 'VERIFIED' | 'FAILED' | 'UNKNOWN' = 'UNKNOWN';
+        let isLive: boolean | null = null;
+        let responseTimeMs: number | null = null;
+        const sslSecure = cleanUrl.startsWith('https://');
+
+        if (isBlockedHost) {
+          verificationStatus = 'FAILED';
+          isLive = false;
+        } else {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 3500);
+            const t0 = Date.now();
+            const headRes = await fetch(cleanUrl, { method: 'HEAD', redirect: 'manual', signal: controller.signal });
+            clearTimeout(timeout);
+            responseTimeMs = Date.now() - t0;
+            isLive = headRes.ok || headRes.status < 400;
+            verificationStatus = isLive ? 'VERIFIED' : 'FAILED';
+          } catch {
+            isLive = null;
+            responseTimeMs = null;
+            verificationStatus = 'UNKNOWN';
+          }
         }
 
         results.websiteAudit = {
           url: cleanUrl,
+          verificationStatus,
           isOnline: isLive,
           sslEncrypted: sslSecure,
-          estimatedLatencyMs: responseTimeMs,
-          accessibilityScore: 92,
-          responsiveDesignVerified: true,
-          verificationVerdict: isLive 
-            ? 'VERIFIED LIVE PORTFOLIO: Functional deployment with valid SSL certificate.'
-            : 'UNREACHABLE OR TIMED OUT: Portfolio URL returned a non-200 code.',
-          atsScraperBiasCheck: {
-            flagged: false,
-            insight: 'Automated crawlers frequently misclassify custom developer portfolios as non-standard. Verified genuine custom domain with interactive demo projects.'
-          }
+          measuredLatencyMs: responseTimeMs,
+          summary:
+            verificationStatus === 'VERIFIED'
+              ? `VERIFIED LIVE PORTFOLIO: Responded in ${responseTimeMs}ms (${sslSecure ? 'HTTPS' : 'HTTP'}).`
+              : verificationStatus === 'FAILED'
+              ? 'FAILED VERIFICATION: URL blocked by SSRF policy or returned an error status.'
+              : 'UNKNOWN: Portfolio reachability could not be verified (timeout or network block).'
         };
       }
     }

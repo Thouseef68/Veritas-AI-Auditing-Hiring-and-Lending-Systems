@@ -154,6 +154,7 @@ function adaptFastApiResponse(fa: any) {
       twinDecision: twin.twin_decision,
       scoreShiftDelta: twin.score_shift_delta,
       signedDelta: twin.signed_delta,
+      isolatedAttribution: twin.isolated_attribution || [],
       measuredDisparateImpactRatio: grp.disparate_impact_ratio,
       eeocFourFifthsPass: grp.eeoc_four_fifths_pass,
       explanation: twin.explanation
@@ -185,20 +186,33 @@ export async function POST(req: Request) {
       adapterType = 'llm',
       endpointUrl = '',
       plantedBiasPoints = 12,
-      mitigate = false
+      mitigate = false,
+      consentConfirmed = false,
+      consentActor = 'web-auditor'
     } = body;
 
     if (!candidate) {
       return NextResponse.json({ error: 'Candidate / applicant profile required' }, { status: 400 });
     }
 
+    if (!consentConfirmed) {
+      return NextResponse.json(
+        { error: 'DPDP Act Section 6 explicit consent confirmation is required before running an audit.' },
+        { status: 403 }
+      );
+    }
+
     // 1. Primary path: Forward to Python FastAPI Audit Orchestrator (ml_engine/server.py)
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 35000);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (process.env.VERITAS_API_SECRET) {
+        headers['X-Veritas-Key'] = process.env.VERITAS_API_SECRET;
+      }
       const faRes = await fetch(`${FASTAPI_URL}/audit/run`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         signal: controller.signal,
         body: JSON.stringify({
           profile: candidate,
@@ -208,7 +222,8 @@ export async function POST(req: Request) {
           endpoint_url: endpointUrl,
           planted_bias_points: plantedBiasPoints,
           mitigate,
-          consent_confirmed: true,
+          consent_confirmed: Boolean(consentConfirmed),
+          consent_actor: consentActor,
           n_cohort_pairs: 6
         })
       });
@@ -260,18 +275,39 @@ export async function POST(req: Request) {
               : 'Tier 3 (Rural/Semi-urban)'
         };
 
-    // Real paired model calls (no fake +6/+5 offsets, no Math.max(80, ...) floor!)
+    // Pre-Inference Privacy Firewall on fallback path: sanitize raw PII BEFORE calling NVIDIA NIM
+    const rawText = String(candidate.resume_text || candidate.statement_text || candidate.notes || '');
+    const sanitizedText = rawText
+      .replace(/\b[2-9]\d{3}\s?\d{4}\s?\d{4}\b/g, '[REDACTED_AADHAAR_UID]')
+      .replace(/\b[A-Z]{5}[0-9]{4}[A-Z]\b/gi, '[REDACTED_PAN]')
+      .replace(/(?:\+91[\-\s]?)?[6-9]\d{9}\b/g, '[REDACTED_PHONE]')
+      .replace(/\b(married|single|divorced|marital status|spouse|maternity|pregnant)\b/gi, '[REDACTED_PURPOSE_PROXY]');
+
+    const safeCandidate = {
+      ...candidate,
+      notes: sanitizedText,
+      ...(isHiring ? { resume_text: sanitizedText } : { statement_text: sanitizedText })
+    };
+
+    // Real paired model calls using SANITIZED safeCandidate (no raw PII sent to external LLM!)
     const [origEval, twinEval] = await Promise.all([
-      callNimDecision(candidate, domain, model),
-      callNimDecision(twinCandidate, domain, model)
+      callNimDecision(safeCandidate, domain, model),
+      callNimDecision(
+        {
+          ...twinCandidate,
+          notes: sanitizedText,
+          ...(isHiring ? { resume_text: sanitizedText } : { statement_text: sanitizedText })
+        },
+        domain,
+        model
+      )
     ]);
 
     const scoreShiftDelta = Math.abs(twinEval.score - origEval.score);
     const signedDelta = twinEval.score - origEval.score;
 
-    // Real output-based grounding check
-    const rawText = String(candidate.resume_text || candidate.statement_text || candidate.notes || '').toLowerCase();
-    const sourceBag = `${rawText} ${candidate.full_name || ''} ${candidate.employer || ''} ${candidate.github || ''} ${candidate.years_exp || ''} ${candidate.credit_score || ''} ${candidate.monthly_income_inr || ''}`.toLowerCase();
+    // Real output-based grounding check against local rawText
+    const sourceBag = `${rawText.toLowerCase()} ${candidate.full_name || ''} ${candidate.employer || ''} ${candidate.github || ''} ${candidate.years_exp || ''} ${candidate.credit_score || ''} ${candidate.monthly_income_inr || ''}`.toLowerCase();
     const claims = [...origEval.whyShouldHire, ...origEval.whyShouldNotHire].slice(0, 6);
     const testedClaims = claims.map((c: string) => {
       const tokens = (c.toLowerCase().match(/[a-z0-9.+#/-]{3,}/g) || []).filter(

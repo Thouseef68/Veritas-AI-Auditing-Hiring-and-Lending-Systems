@@ -3,6 +3,7 @@ import urllib.request
 from typing import Any, Dict
 
 from .base import ModelAdapter
+from ..security import validate_external_url
 
 
 class VendorAPIAdapter(ModelAdapter):
@@ -11,13 +12,14 @@ class VendorAPIAdapter(ModelAdapter):
     adapter_type = "api"
 
     def __init__(self, endpoint_url: str, auth_header: str = ""):
-        self.endpoint_url = endpoint_url
+        self.endpoint_url = validate_external_url(endpoint_url, require_https=False) if endpoint_url else ""
         self.auth_header = auth_header
-        self.model_name = f"vendor-api:{endpoint_url}"
+        self.model_name = f"vendor-api:{self.endpoint_url}"
 
     def decide(self, profile: Dict[str, Any], domain: str = "hiring") -> Dict[str, Any]:
         if not self.endpoint_url:
             raise ValueError("Vendor API endpoint_url is required.")
+        validate_external_url(self.endpoint_url, require_https=False)
 
         headers = {"Content-Type": "application/json"}
         if self.auth_header:

@@ -141,12 +141,21 @@ def compute_group_metrics(
         eo_diff = "Not measurable"
         eq_odds = "Not measurable"
 
+    if isinstance(dir_val, float):
+        if dir_val >= 0.80:
+            four_fifths_status = "Above 0.80 reference threshold (Four-Fifths Screening)"
+        else:
+            four_fifths_status = "Below 0.80 reference threshold (Potential adverse-impact signal requiring investigation)"
+    else:
+        four_fifths_status = "Not measurable"
+
     return {
         "sensitive_attribute": sensitive_attr,
         "privileged_group": priv_val,
         "unprivileged_group": unpriv_val,
         "disparate_impact_ratio": dir_val,
         "eeoc_four_fifths_pass": (dir_val >= 0.80) if isinstance(dir_val, float) else "Not measurable",
+        "four_fifths_screening_status": four_fifths_status,
         "demographic_parity_difference": dp_diff,
         "equal_opportunity_difference": eo_diff,
         "equalized_odds_difference": eq_odds,
@@ -154,6 +163,11 @@ def compute_group_metrics(
         "unprivileged_stats": unpriv_stats,
         "sample_size": len(records),
         "sample_size_warning": len(records) < 30,
+        "sample_size_note": (
+            "Insufficient sample size (n < 30): do not interpret as statistical evidence of discrimination."
+            if len(records) < 30
+            else f"Sample size n = {len(records)}."
+        ),
     }
 
 

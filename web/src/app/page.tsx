@@ -88,6 +88,7 @@ export default function Home() {
 
   // Shared UI States
   const [adapterType, setAdapterType] = useState<'llm' | 'ml_model'>('llm');
+  const [consentConfirmed, setConsentConfirmed] = useState<boolean>(true);
   const [showChainOfThought, setShowChainOfThought] = useState<boolean>(false);
   const [showGroundingDetails, setShowGroundingDetails] = useState<boolean>(false);
   const [hiringRemediated, setHiringRemediated] = useState<boolean>(false);
@@ -322,6 +323,7 @@ export default function Home() {
           portfolioUrl: hiringApplicant.portfolio,
           companyName: hiringApplicant.employer,
           adapterType,
+          consentConfirmed,
           model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       }).then(r => r.json());
@@ -357,6 +359,7 @@ export default function Home() {
           domain: 'lending',
           companyName: lendingApplicant.employer,
           adapterType,
+          consentConfirmed,
           model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       });
@@ -404,6 +407,7 @@ export default function Home() {
           companyName: updatedApplicant.employer,
           adapterType,
           mitigate: true,
+          consentConfirmed,
           model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       });
@@ -447,6 +451,7 @@ export default function Home() {
           companyName: updatedApplicant.employer,
           adapterType,
           mitigate: true,
+          consentConfirmed,
           model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       });
@@ -1146,11 +1151,23 @@ export default function Home() {
                 </span>
               </div>
 
-              {/* Audit Trigger Button */}
-              <div className="pt-2">
+              {/* Explicit DPDP Consent & Audit Trigger */}
+              <div className="pt-2 space-y-3">
+                <label className="flex items-start gap-2.5 text-xs text-slate-300 bg-[#121624] p-3 rounded-xl border border-white/[0.06] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={consentConfirmed}
+                    onChange={(e) => setConsentConfirmed(e.target.checked)}
+                    className="mt-0.5 accent-blue-500 cursor-pointer"
+                  />
+                  <span>
+                    <strong>DPDP Section 6 Consent:</strong> I confirm that I have authority and explicit consent to process the submitted personal data for this algorithmic audit (raw PII is masked prior to external model calls).
+                  </span>
+                </label>
+
                 <button
                   onClick={handleRunHiringAudit}
-                  disabled={hiringLoading}
+                  disabled={hiringLoading || !consentConfirmed}
                   className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-xl shadow-blue-500/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {hiringLoading ? (
@@ -1457,6 +1474,28 @@ export default function Home() {
                     </div>
                   </div>
 
+                  {/* Isolated One-Variable Counterfactual Attribution */}
+                  {hiringNvidiaResult.counterfactualTwinTest?.isolatedAttribution?.length > 0 && (
+                    <div className="bg-[#07090e] p-3.5 rounded-2xl border border-white/[0.06] space-y-2">
+                      <span className="font-bold text-slate-200 uppercase text-[10px] tracking-wider block">
+                        Isolated One-Variable Counterfactual Attribution
+                      </span>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                        {hiringNvidiaResult.counterfactualTwinTest.isolatedAttribution.map((attr: any, i: number) => (
+                          <div key={i} className="bg-[#121624] p-2.5 rounded-xl border border-white/[0.04]">
+                            <span className="text-[10px] text-slate-400 block">{attr.label}</span>
+                            <span className="font-mono text-xs text-white font-bold">
+                              {attr.original_score} → {attr.twin_score}
+                            </span>
+                            <span className={`text-[10px] font-mono block ${attr.potential_bias ? 'text-amber-400 font-bold' : 'text-emerald-400'}`}>
+                              Δ {attr.delta >= 0 ? `+${attr.delta}` : attr.delta} pts {attr.potential_bias ? '⚠ Bias' : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Surrogate Rule Extraction & Hash-Chained Ledger Receipt (if available) */}
                   {(hiringNvidiaResult.ruleExtraction?.supported || hiringNvidiaResult.ledgerReceipt) && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1">
@@ -1637,7 +1676,7 @@ export default function Home() {
                         <GitBranch className="w-3.5 h-3.5 text-blue-400" /> Public Code Footprint (GitHub):
                       </div>
                       <p className="text-[11px] text-slate-400 leading-relaxed">
-                        {hiringExternalResult?.githubAnalysis?.summary || 'Public repositories show active implementations, reproducible models, and commit history.'}
+                        {hiringExternalResult?.githubAudit?.summary || 'GitHub verification not run or status UNKNOWN.'}
                       </p>
                     </div>
 
@@ -1646,7 +1685,7 @@ export default function Home() {
                         <Globe className="w-3.5 h-3.5 text-emerald-400" /> Live Deployment (Portfolio):
                       </div>
                       <p className="text-[11px] text-slate-400 leading-relaxed">
-                        {hiringExternalResult?.portfolioAnalysis?.summary || 'Production web application verified with SSL encryption and responsive frontend.'}
+                        {hiringExternalResult?.websiteAudit?.summary || 'Portfolio reachability not verified (status UNKNOWN).'}
                       </p>
                     </div>
                   </div>
@@ -1975,11 +2014,23 @@ export default function Home() {
                 </span>
               </div>
 
-              {/* Run Underwriting Audit Button */}
-              <div className="pt-2">
+              {/* Explicit DPDP Consent & Run Underwriting Audit */}
+              <div className="pt-2 space-y-3">
+                <label className="flex items-start gap-2.5 text-xs text-slate-300 bg-[#121624] p-3 rounded-xl border border-white/[0.06] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={consentConfirmed}
+                    onChange={(e) => setConsentConfirmed(e.target.checked)}
+                    className="mt-0.5 accent-teal-500 cursor-pointer"
+                  />
+                  <span>
+                    <strong>DPDP Section 6 Consent:</strong> I confirm that I have authority and explicit consent to process the submitted financial dossier for this algorithmic audit (raw PII is masked prior to external model calls).
+                  </span>
+                </label>
+
                 <button
                   onClick={handleRunLendingAudit}
-                  disabled={lendingLoading}
+                  disabled={lendingLoading || !consentConfirmed}
                   className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold text-sm shadow-xl shadow-teal-500/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {lendingLoading ? (
@@ -2279,6 +2330,28 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Isolated One-Variable Counterfactual Attribution */}
+                  {lendingNvidiaResult.counterfactualTwinTest?.isolatedAttribution?.length > 0 && (
+                    <div className="bg-[#07090e] p-3.5 rounded-2xl border border-white/[0.06] space-y-2">
+                      <span className="font-bold text-slate-200 uppercase text-[10px] tracking-wider block">
+                        Isolated One-Variable Counterfactual Attribution
+                      </span>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                        {lendingNvidiaResult.counterfactualTwinTest.isolatedAttribution.map((attr: any, i: number) => (
+                          <div key={i} className="bg-[#121624] p-2.5 rounded-xl border border-white/[0.04]">
+                            <span className="text-[10px] text-slate-400 block">{attr.label}</span>
+                            <span className="font-mono text-xs text-white font-bold">
+                              {attr.original_score} → {attr.twin_score}
+                            </span>
+                            <span className={`text-[10px] font-mono block ${attr.potential_bias ? 'text-amber-400 font-bold' : 'text-emerald-400'}`}>
+                              Δ {attr.delta >= 0 ? `+${attr.delta}` : attr.delta} pts {attr.potential_bias ? '⚠ Bias' : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Surrogate Rule Extraction & Hash-Chained Ledger Receipt (if available) */}
                   {(lendingNvidiaResult.ruleExtraction?.supported || lendingNvidiaResult.ledgerReceipt) && (

@@ -44,75 +44,85 @@ export async function POST(req: Request) {
 
     const evaluateGroup = (group: any[]) => {
       const total = group.length;
+      const hasGroundTruth = group.every(
+        (r: any) => (r.qualified_merit ?? r.qualified ?? r.merit ?? r.target) !== undefined &&
+                    (r.qualified_merit ?? r.qualified ?? r.merit ?? r.target) !== null
+      );
       let positives = 0;
       let tp = 0, fp = 0, fn = 0, tn = 0;
 
       for (const r of group) {
-        // Support flexible column names from user CSV
         let rawScore = r.simulated_model_score ?? r.score ?? r.Score ?? (r.credit_score ? r.credit_score / 850 : null) ?? (r.skills_score ? r.skills_score / 100 : null);
         if (rawScore === null) {
           rawScore = (r.approved_historically || r.approved || r.Approved || r.shortlisted) ? 0.75 : 0.35;
         }
-        if (rawScore > 1.0) rawScore = rawScore / 100.0; // scale 0-100 to 0-1
+        if (rawScore > 1.0) rawScore = rawScore / 100.0;
 
         const predicted = rawScore >= threshold ? 1 : 0;
-        const actual = (r.qualified_merit ?? r.qualified ?? r.merit ?? r.target ?? 1) ? 1 : 0;
-
         if (predicted === 1) positives++;
 
-        if (predicted === 1 && actual === 1) tp++;
-        else if (predicted === 1 && actual === 0) fp++;
-        else if (predicted === 0 && actual === 1) fn++;
-        else tn++;
+        if (hasGroundTruth) {
+          const actual = (r.qualified_merit ?? r.qualified ?? r.merit ?? r.target) ? 1 : 0;
+          if (predicted === 1 && actual === 1) tp++;
+          else if (predicted === 1 && actual === 0) fp++;
+          else if (predicted === 0 && actual === 1) fn++;
+          else tn++;
+        }
       }
 
       const selectionRate = total > 0 ? positives / total : 0;
       const actualPos = tp + fn;
       const actualNeg = fp + tn;
-      const tpr = actualPos > 0 ? tp / actualPos : 0;
-      const fpr = actualNeg > 0 ? fp / actualNeg : 0;
-      const accuracy = total > 0 ? (tp + tn) / total : 0;
+      const tpr = hasGroundTruth && actualPos > 0 ? Number((tp / actualPos).toFixed(4)) : 'Not measurable';
+      const fpr = hasGroundTruth && actualNeg > 0 ? Number((fp / actualNeg).toFixed(4)) : 'Not measurable';
+      const accuracy = hasGroundTruth && total > 0 ? Number(((tp + tn) / total).toFixed(4)) : 'Not measurable';
 
       return {
         total,
         positives,
         selectionRate: Number(selectionRate.toFixed(4)),
-        tpr: Number(tpr.toFixed(4)),
-        fpr: Number(fpr.toFixed(4)),
-        accuracy: Number(accuracy.toFixed(4)),
-        tp, fp, fn, tn
+        tpr,
+        fpr,
+        accuracy,
+        tp: hasGroundTruth ? tp : null,
+        fp: hasGroundTruth ? fp : null,
+        fn: hasGroundTruth ? fn : null,
+        tn: hasGroundTruth ? tn : null
       };
     };
 
     const privStats = evaluateGroup(actualPriv);
     const unprivStats = evaluateGroup(actualUnpriv);
 
-    // 1. Disparate Impact Ratio (80% Rule)
+    // 1. Disparate Impact Ratio (Four-Fifths Screening Indicator)
     const disparateImpactRatio = privStats.selectionRate > 0 
       ? Number((unprivStats.selectionRate / privStats.selectionRate).toFixed(3)) 
       : 1.0;
 
-    let diStatus = 'COMPLIANT';
+    let diStatus = 'Above 0.80 reference threshold (Four-Fifths Screening)';
     let severity = 'green';
     if (disparateImpactRatio < 0.65) {
-      diStatus = 'CRITICAL VIOLATION (< 0.65)';
+      diStatus = 'Below 0.65 (Strong adverse-impact signal requiring investigation)';
       severity = 'red';
     } else if (disparateImpactRatio < 0.80) {
-      diStatus = 'NON-COMPLIANT (Fails 80% Rule)';
+      diStatus = 'Below 0.80 reference threshold (Potential adverse-impact signal)';
       severity = 'amber';
-    } else {
-      diStatus = 'COMPLIANT (Passes 80% Rule)';
-      severity = 'green';
     }
 
     // 2. Demographic Parity Difference
     const demographicParityDiff = Number(Math.abs(privStats.selectionRate - unprivStats.selectionRate).toFixed(4));
 
-    // 3. Equal Opportunity Difference
-    const equalOpportunityDiff = Number(Math.abs(privStats.tpr - unprivStats.tpr).toFixed(4));
+    // 3. Equal Opportunity Difference (only when ground truth exists)
+    const equalOpportunityDiff =
+      typeof privStats.tpr === 'number' && typeof unprivStats.tpr === 'number'
+        ? Number(Math.abs(privStats.tpr - unprivStats.tpr).toFixed(4))
+        : 'Not measurable';
 
-    // 4. Average Odds Difference
-    const avgOddsDiff = Number((0.5 * (Math.abs(privStats.fpr - unprivStats.fpr) + Math.abs(privStats.tpr - unprivStats.tpr))).toFixed(4));
+    // 4. Average Odds Difference (only when ground truth exists)
+    const avgOddsDiff =
+      typeof privStats.fpr === 'number' && typeof unprivStats.fpr === 'number' && typeof equalOpportunityDiff === 'number'
+        ? Number((0.5 * (Math.abs(privStats.fpr - unprivStats.fpr) + equalOpportunityDiff)).toFixed(4))
+        : 'Not measurable';
 
     // Counterfactual Flip Rate
     let flipCount = 0;

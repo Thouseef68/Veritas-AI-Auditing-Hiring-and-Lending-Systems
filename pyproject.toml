@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "veritas-ai-auditor"
+version = "2.1.0"
+description = "Model-agnostic AI auditing engine for fairness, counterfactual attribution, grounding, and DPDP privacy governance."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "pydantic>=2.9.0",
+    "pyyaml>=6.0",
+    "python-multipart>=0.0.9",
+    "scikit-learn>=1.5.0",
+    "scipy>=1.13.0",
+    "numpy>=1.26.0",
+    "pypdf>=5.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]

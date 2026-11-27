@@ -1,63 +1,63 @@
 rules:
   - id: dpdp_aadhaar_uid
-    type: Aadhaar Number Leakage
+    type: Aadhaar-like 12-Digit Identifier Detected
     pattern: '\b[2-9]{1}[0-9]{3}\s?[0-9]{4}\s?[0-9]{4}\b'
-    clause: DPDP Act 2023 - Section 8(5)
-    title: Reasonable Security Safeguards (UIDAI Token Exposure)
+    clause: DPDP Act 2023 - Section 8(5) (Security Safeguards)
+    title: Sensitive identifier detected in processing context; verify safeguards and necessity
     severity: CRITICAL
     mask_type: aadhaar
-    fix: Mask or tokenize 12-digit Aadhaar numbers before transmitting context to AI models.
+    fix: Mask or tokenize 12-digit Aadhaar identifiers prior to external AI inference.
 
   - id: dpdp_pan_card
-    type: PAN Card Token Detected
+    type: PAN-like Tax Identifier Detected
     pattern: '\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b'
     clause: DPDP Act 2023 - Section 8(5) & Section 8(1)
-    title: Financial Identifier Safeguards & Data Minimization
+    title: Financial identifier detected in processing context; verify minimization and safeguards
     severity: HIGH
     mask_type: pan
     fix: Strip tax identifiers (PAN) from pre-screening evaluation prompts.
 
   - id: dpdp_phone_number
-    type: Direct Contact Number Exposed
+    type: Direct Contact Number Detected
     pattern: '(?:\+91[\-\s]?)?[6-9]\d{9}\b'
-    clause: DPDP Act 2023 - Section 8(1)
-    title: Data Minimization (Unnecessary Contact PII)
+    clause: DPDP Act 2023 - Section 8(1) (Data Minimization)
+    title: Contact identifier detected; review necessity for automated scoring
     severity: MEDIUM
     mask_type: phone
     fix: Mask mobile numbers prior to automated scoring.
 
   - id: dpdp_email_address
-    type: Direct Email Address Exposed
+    type: Direct Email Address Detected
     pattern: '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
-    clause: DPDP Act 2023 - Section 8(1)
-    title: Data Minimization (Personal Email)
+    clause: DPDP Act 2023 - Section 8(1) (Data Minimization)
+    title: Personal email detected; pseudonymize for blind screening
     severity: LOW
     mask_type: email
     fix: Pseudonymize email addresses during blind screening.
 
   - id: dpdp_marital_proxy
-    type: Discriminatory Proxy (Marital / Family Status)
+    type: Marital / Family Status Attribute Detected
     pattern: '\b(married|single|divorced|marital status|spouse|maternity|pregnant|childcare|family planning)\b'
-    clause: DPDP Act 2023 - Section 6
-    title: Consent & Specified Purpose Limitation
+    clause: DPDP Act 2023 - Section 6 (Purpose & Consent)
+    title: Potential purpose/consent concern; review required
     severity: HIGH
     mask_type: keyword
-    fix: Exclude marital and family status attributes from job or credit evaluation.
+    fix: Verify lawful basis or exclude marital/family attributes from job or credit scoring.
 
   - id: dpdp_caste_religion_proxy
-    type: Discriminatory Proxy (Caste / Religion)
+    type: Caste / Religion Attribute Detected
     pattern: '\b(caste|religion|hindu|muslim|christian|sikh|brahmin|dalit|obc|sc/st)\b'
-    clause: DPDP Act 2023 - Section 6
-    title: Consent & Specified Purpose Limitation
+    clause: DPDP Act 2023 - Section 6 (Purpose & Consent)
+    title: Potential purpose/consent concern; review required
     severity: CRITICAL
     mask_type: keyword
     fix: Remove caste or religious identifiers from automated decision pipelines.
 
   - id: rbi_mobile_resource_access
-    type: RBI Mobile Resource Access Risk
+    type: Mobile Resource Access Reference Detected
     pattern: '\b(contact list|call log|gallery access|sms read|device contacts)\b'
     clause: RBI Digital Lending Directions (2025)
-    title: Need-Based Data Collection Restriction
+    title: Potential non-need-based mobile resource access; review required
     severity: HIGH
     mask_type: keyword
     fix: Prohibit access to borrower mobile contacts, media, and telephony logs.

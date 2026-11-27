@@ -48,13 +48,31 @@ def init_db() -> None:
             id TEXT PRIMARY KEY,
             run_id TEXT NOT NULL,
             created_at REAL NOT NULL,
+            reviewer_id TEXT NOT NULL,
+            reviewer_name TEXT NOT NULL,
+            reviewer_role TEXT NOT NULL,
+            decision_before TEXT,
+            decision_after TEXT,
             reviewer_action TEXT NOT NULL,
-            justification TEXT,
+            override_reason TEXT,
             prev_hash TEXT NOT NULL,
             entry_hash TEXT NOT NULL
         )
         """
     )
+    # Migrate older schema if needed
+    cur.execute("PRAGMA table_info(human_signoffs)")
+    existing_cols = {row[1] for row in cur.fetchall()}
+    for col, col_def in [
+        ("reviewer_id", "TEXT DEFAULT 'OFFICER-001'"),
+        ("reviewer_name", "TEXT DEFAULT 'Authorized Reviewer'"),
+        ("reviewer_role", "TEXT DEFAULT 'Oversight Officer'"),
+        ("decision_before", "TEXT DEFAULT ''"),
+        ("decision_after", "TEXT DEFAULT ''"),
+        ("override_reason", "TEXT DEFAULT ''"),
+    ]:
+        if col not in existing_cols:
+            cur.execute(f"ALTER TABLE human_signoffs ADD COLUMN {col} {col_def}")
     conn.commit()
     conn.close()
 
@@ -116,7 +134,16 @@ def save_audit_run(
     return {"run_id": run_id, "prev_hash": prev_hash, "entry_hash": entry_hash}
 
 
-def save_human_signoff(run_id: str, action: str, justification: str = "") -> Dict[str, str]:
+def save_human_signoff(
+    run_id: str,
+    action: str,
+    justification: str = "",
+    reviewer_id: str = "OFFICER-001",
+    reviewer_name: str = "Authorized Reviewer",
+    reviewer_role: str = "Hiring / Credit Oversight Officer",
+    decision_before: str = "",
+    decision_after: str = "",
+) -> Dict[str, Any]:
     init_db()
     conn = _get_conn()
     cur = conn.cursor()
@@ -127,18 +154,45 @@ def save_human_signoff(run_id: str, action: str, justification: str = "") -> Dic
 
     signoff_id = str(uuid.uuid4())
     created_at = time.time()
-    entry_hash = _compute_hash(prev_hash, f"{signoff_id}|{run_id}|{action}|{justification}|{created_at}")
+    payload = f"{signoff_id}|{run_id}|{reviewer_id}|{reviewer_role}|{decision_before}|{decision_after}|{action}|{justification}|{created_at}"
+    entry_hash = _compute_hash(prev_hash, payload)
 
     cur.execute(
         """
-        INSERT INTO human_signoffs (id, run_id, created_at, reviewer_action, justification, prev_hash, entry_hash)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO human_signoffs (
+            id, run_id, created_at, reviewer_id, reviewer_name, reviewer_role,
+            decision_before, decision_after, reviewer_action, override_reason,
+            prev_hash, entry_hash
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (signoff_id, run_id, created_at, action, justification, prev_hash, entry_hash),
+        (
+            signoff_id,
+            run_id,
+            created_at,
+            reviewer_id,
+            reviewer_name,
+            reviewer_role,
+            decision_before,
+            decision_after,
+            action,
+            justification,
+            prev_hash,
+            entry_hash,
+        ),
     )
     conn.commit()
     conn.close()
-    return {"signoff_id": signoff_id, "prev_hash": prev_hash, "entry_hash": entry_hash}
+    return {
+        "signoff_id": signoff_id,
+        "reviewer_id": reviewer_id,
+        "reviewer_name": reviewer_name,
+        "reviewer_role": reviewer_role,
+        "decision_before": decision_before,
+        "decision_after": decision_after,
+        "timestamp": created_at,
+        "prev_hash": prev_hash,
+        "entry_hash": entry_hash,
+    }
 
 
 def get_monitoring_history(limit: int = 20) -> Dict[str, Any]:
