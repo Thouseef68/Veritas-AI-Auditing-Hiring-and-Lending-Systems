@@ -90,18 +90,17 @@ class PlantedBiasModelAdapter(ModelAdapter):
         cibil = float(profile.get("credit_score", 650) or 650)
 
         # Normalize DTI
-        if "debt_to_income" in profile and profile.get("debt_to_income") is not None:
-            raw_dti = profile["debt_to_income"]
-            if isinstance(raw_dti, str) and "%" in raw_dti:
-                dti = float(raw_dti.replace("%", "").strip()) / 100.0
+        raw_dti = profile.get("debt_to_income") if profile.get("debt_to_income") is not None else profile.get("dti")
+        if raw_dti is not None:
+            if isinstance(raw_dti, (int, float)):
+                dti = float(raw_dti) / 100.0 if float(raw_dti) > 1.0 else float(raw_dti)
             else:
-                dti = float(raw_dti)
-                if dti > 1.0:
-                    dti = dti / 100.0
-        elif "dti" in profile and profile.get("dti") is not None:
-            dti = float(profile["dti"])
-            if dti > 1.0:
-                dti = dti / 100.0
+                s = str(raw_dti).replace("%", "").strip()
+                try:
+                    f = float(s)
+                    dti = f / 100.0 if f > 1.0 else f
+                except Exception:
+                    dti = 0.5
         else:
             dti = (obligations / income) if income > 0 else 0.5
 

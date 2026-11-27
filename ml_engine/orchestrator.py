@@ -106,16 +106,17 @@ def sanitize_profile_allowlist(profile: Dict[str, Any], domain: str) -> tuple[Di
         ob = float(safe.get("monthly_obligations_inr") or safe.get("monthly_obligations") or 0)
         safe["monthly_obligations_inr"] = ob
 
-        if "debt_to_income" in safe and safe["debt_to_income"] is not None:
-            raw_dti = safe["debt_to_income"]
-            if isinstance(raw_dti, str) and "%" in raw_dti:
-                safe["debt_to_income"] = float(raw_dti.replace("%", "").strip()) / 100.0
+        raw_dti = safe.get("debt_to_income") if safe.get("debt_to_income") is not None else safe.get("dti")
+        if raw_dti is not None:
+            if isinstance(raw_dti, (int, float)):
+                safe["debt_to_income"] = float(raw_dti) / 100.0 if float(raw_dti) > 1.0 else float(raw_dti)
             else:
-                dti_val = float(raw_dti)
-                safe["debt_to_income"] = dti_val / 100.0 if dti_val > 1.0 else dti_val
-        elif "dti" in safe and safe["dti"] is not None:
-            dti_val = float(safe["dti"])
-            safe["debt_to_income"] = dti_val / 100.0 if dti_val > 1.0 else dti_val
+                s = str(raw_dti).replace("%", "").strip()
+                try:
+                    f = float(s)
+                    safe["debt_to_income"] = f / 100.0 if f > 1.0 else f
+                except Exception:
+                    safe["debt_to_income"] = 0.5
         else:
             safe["debt_to_income"] = round(ob / float(inc), 3) if float(inc) > 0 else 0.5
 
