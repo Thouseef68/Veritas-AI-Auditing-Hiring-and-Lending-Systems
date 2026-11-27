@@ -1,0 +1,27 @@
+[
+  {
+    "name": "POST /api/external-audit resume upload & text extraction",
+    "status": "PASS",
+    "ms": 1473
+  },
+  {
+    "name": "POST /api/nvidia rejects empty or whitespace-only resume",
+    "status": "PASS",
+    "ms": 278
+  },
+  {
+    "name": "POST /api/nvidia blocks audit when consentConfirmed is false",
+    "status": "PASS",
+    "ms": 487
+  },
+  {
+    "name": "POST /api/nvidia full hiring audit workflow (ml_model)",
+    "status": "PASS",
+    "ms": 2164
+  },
+  {
+    "name": "POST /api/nvidia lending solvency evaluation with income & DTI",
+    "status": "PASS",
+    "ms": 1729
+  }
+]
