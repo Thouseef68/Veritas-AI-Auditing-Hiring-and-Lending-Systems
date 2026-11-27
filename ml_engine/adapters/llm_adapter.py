@@ -210,7 +210,7 @@ class LLMAdapter(ModelAdapter):
             {
                 "model": self.model_name,
                 "messages": messages,
-                "max_tokens": 1200,
+                "max_tokens": 2500,
                 "temperature": 0.2,
             }
         ).encode("utf-8")
