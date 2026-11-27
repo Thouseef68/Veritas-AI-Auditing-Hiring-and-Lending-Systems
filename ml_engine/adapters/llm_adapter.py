@@ -226,7 +226,7 @@ class LLMAdapter(ModelAdapter):
             method="POST",
         )
 
-        with urllib.request.urlopen(req, timeout=35) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             data = json.loads(resp.read().decode("utf-8"))
 
         choice = (data.get("choices") or [{}])[0]

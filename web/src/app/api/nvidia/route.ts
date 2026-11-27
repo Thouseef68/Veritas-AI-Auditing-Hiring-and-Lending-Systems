@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 
+// Allow Vercel Functions to run for up to 300s (Pro plan) so NVIDIA NIM
+// reasoning model calls (which can take 60-120s) complete before timeout.
+export const maxDuration = 300;
+
 const IS_PROD = process.env.NODE_ENV === 'production';
 const FASTAPI_URL = process.env.VERITAS_BACKEND_URL || (IS_PROD ? '' : 'http://127.0.0.1:8000');
 
@@ -121,7 +125,7 @@ export async function POST(req: Request) {
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 55000);
+    const timeout = setTimeout(() => controller.abort(), 240000); // 240s — allow NVIDIA NIM reasoning model to complete
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (process.env.VERITAS_API_SECRET) {
       headers['X-Veritas-Key'] = process.env.VERITAS_API_SECRET;
