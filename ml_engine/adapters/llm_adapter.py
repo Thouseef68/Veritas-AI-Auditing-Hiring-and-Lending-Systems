@@ -254,7 +254,8 @@ class LLMAdapter(ModelAdapter):
         ]
 
         content, reasoning_chain = self._call_nim(messages)
-        parsed = self._parse_structured_output(content, domain)
+        target_text = content.strip() if content and content.strip() else reasoning_chain
+        parsed = self._parse_structured_output(target_text, domain)
 
         # Retry once if model output was malformed rather than assigning a silent default 50
         if not parsed:
