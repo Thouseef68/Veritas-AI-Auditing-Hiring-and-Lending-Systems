@@ -1,0 +1,63 @@
+rules:
+  - id: dpdp_aadhaar_uid
+    type: Aadhaar Number Leakage
+    pattern: '\b[2-9]{1}[0-9]{3}\s?[0-9]{4}\s?[0-9]{4}\b'
+    clause: DPDP Act 2023 - Section 8(5)
+    title: Reasonable Security Safeguards (UIDAI Token Exposure)
+    severity: CRITICAL
+    mask_type: aadhaar
+    fix: Mask or tokenize 12-digit Aadhaar numbers before transmitting context to AI models.
+
+  - id: dpdp_pan_card
+    type: PAN Card Token Detected
+    pattern: '\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b'
+    clause: DPDP Act 2023 - Section 8(5) & Section 8(1)
+    title: Financial Identifier Safeguards & Data Minimization
+    severity: HIGH
+    mask_type: pan
+    fix: Strip tax identifiers (PAN) from pre-screening evaluation prompts.
+
+  - id: dpdp_phone_number
+    type: Direct Contact Number Exposed
+    pattern: '(?:\+91[\-\s]?)?[6-9]\d{9}\b'
+    clause: DPDP Act 2023 - Section 8(1)
+    title: Data Minimization (Unnecessary Contact PII)
+    severity: MEDIUM
+    mask_type: phone
+    fix: Mask mobile numbers prior to automated scoring.
+
+  - id: dpdp_email_address
+    type: Direct Email Address Exposed
+    pattern: '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
+    clause: DPDP Act 2023 - Section 8(1)
+    title: Data Minimization (Personal Email)
+    severity: LOW
+    mask_type: email
+    fix: Pseudonymize email addresses during blind screening.
+
+  - id: dpdp_marital_proxy
+    type: Discriminatory Proxy (Marital / Family Status)
+    pattern: '\b(married|single|divorced|marital status|spouse|maternity|pregnant|childcare|family planning)\b'
+    clause: DPDP Act 2023 - Section 6
+    title: Consent & Specified Purpose Limitation
+    severity: HIGH
+    mask_type: keyword
+    fix: Exclude marital and family status attributes from job or credit evaluation.
+
+  - id: dpdp_caste_religion_proxy
+    type: Discriminatory Proxy (Caste / Religion)
+    pattern: '\b(caste|religion|hindu|muslim|christian|sikh|brahmin|dalit|obc|sc/st)\b'
+    clause: DPDP Act 2023 - Section 6
+    title: Consent & Specified Purpose Limitation
+    severity: CRITICAL
+    mask_type: keyword
+    fix: Remove caste or religious identifiers from automated decision pipelines.
+
+  - id: rbi_mobile_resource_access
+    type: RBI Mobile Resource Access Risk
+    pattern: '\b(contact list|call log|gallery access|sms read|device contacts)\b'
+    clause: RBI Digital Lending Directions (2025)
+    title: Need-Based Data Collection Restriction
+    severity: HIGH
+    mask_type: keyword
+    fix: Prohibit access to borrower mobile contacts, media, and telephony logs.

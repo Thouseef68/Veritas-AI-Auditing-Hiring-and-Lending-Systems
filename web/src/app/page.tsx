@@ -87,6 +87,7 @@ export default function Home() {
   const [lendingLoading, setLendingLoading] = useState<boolean>(false);
 
   // Shared UI States
+  const [adapterType, setAdapterType] = useState<'llm' | 'ml_model'>('llm');
   const [showChainOfThought, setShowChainOfThought] = useState<boolean>(false);
   const [showGroundingDetails, setShowGroundingDetails] = useState<boolean>(false);
   const [hiringRemediated, setHiringRemediated] = useState<boolean>(false);
@@ -320,6 +321,7 @@ export default function Home() {
           githubUrl: hiringApplicant.github,
           portfolioUrl: hiringApplicant.portfolio,
           companyName: hiringApplicant.employer,
+          adapterType,
           model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       }).then(r => r.json());
@@ -354,6 +356,7 @@ export default function Home() {
           },
           domain: 'lending',
           companyName: lendingApplicant.employer,
+          adapterType,
           model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       });
@@ -399,6 +402,8 @@ export default function Home() {
           domain: 'hiring',
           targetRole: updatedApplicant.target_role,
           companyName: updatedApplicant.employer,
+          adapterType,
+          mitigate: true,
           model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       });
@@ -440,6 +445,8 @@ export default function Home() {
           },
           domain: 'lending',
           companyName: updatedApplicant.employer,
+          adapterType,
+          mitigate: true,
           model: 'nvidia/nemotron-3.5-lightning-30b-a3b'
         })
       });
@@ -876,6 +883,19 @@ export default function Home() {
               <Landmark className="w-3.5 h-3.5" />
               <span>Lending &amp; Credit Underwriting</span>
             </button>
+          </div>
+
+          {/* UNIVERSAL MODEL ADAPTER SELECTOR */}
+          <div className="hidden lg:flex items-center gap-2 bg-[#101422] px-3 py-1 rounded-full border border-white/[0.08] text-xs">
+            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Target:</span>
+            <select
+              value={adapterType}
+              onChange={(e) => setAdapterType(e.target.value as 'llm' | 'ml_model')}
+              className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer text-xs"
+            >
+              <option value="llm" className="bg-[#101422]">LLM Screener (Nemotron 3.5)</option>
+              <option value="ml_model" className="bg-[#101422]">Auditor Validator (Planted -12pt Bias)</option>
+            </select>
           </div>
         </div>
       </header>
@@ -1408,28 +1428,58 @@ export default function Home() {
                           <Activity className="w-3.5 h-3.5 text-emerald-400" /> Fairness Evaluation
                         </span>
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold font-mono">
-                          DIR: {hiringNvidiaResult.counterfactualTwinTest?.measuredDisparateImpactRatio || '0.96'}
+                          DIR: {typeof hiringNvidiaResult.counterfactualTwinTest?.measuredDisparateImpactRatio === 'number'
+                            ? hiringNvidiaResult.counterfactualTwinTest.measuredDisparateImpactRatio
+                            : 'N/M'}
                         </span>
                       </div>
                       <div className="space-y-1.5 text-[11px] text-slate-400">
                         <div>
                           <span className="text-slate-300 font-medium">Disparate Impact Ratio:</span>{' '}
                           <strong className="text-white font-mono">
-                            {hiringNvidiaResult.counterfactualTwinTest?.measuredDisparateImpactRatio || '0.96'}
-                          </strong> (Benchmark: US EEOC Four-Fifths 0.80 Rule).
+                            {hiringNvidiaResult.counterfactualTwinTest?.measuredDisparateImpactRatio ?? 'Not measurable'}
+                          </strong>
                         </div>
                         <div>
-                          <span className="text-slate-300 font-medium">EEOC Compliance:</span>{' '}
-                          {hiringNvidiaResult.counterfactualTwinTest?.eeocFourFifthsPass !== false
-                            ? 'PASSES US EEOC 80% selection rate parity.'
-                            : 'ACTION REQUIRED: Disparate impact below 0.80 benchmark.'}
+                          <span className="text-slate-300 font-medium">EEOC Four-Fifths (0.80):</span>{' '}
+                          {hiringNvidiaResult.counterfactualTwinTest?.eeocFourFifthsPass === true
+                            ? 'PASSES 80% selection parity.'
+                            : hiringNvidiaResult.counterfactualTwinTest?.eeocFourFifthsPass === false
+                            ? 'BELOW 0.80 BENCHMARK (Adverse impact).'
+                            : 'Requires cohort batch / validator mode.'}
                         </div>
                         <div className="text-[10px] text-slate-500 pt-1 border-t border-white/[0.04]">
-                          Governance Metric: Verified Four-Fifths Rule compliance.
+                          {hiringNvidiaResult.pairedStatistics?.p_value !== undefined && hiringNvidiaResult.pairedStatistics?.p_value !== 'Not measurable'
+                            ? `Paired Mean Delta: ${hiringNvidiaResult.pairedStatistics.mean_score_delta} pts (p=${hiringNvidiaResult.pairedStatistics.p_value})`
+                            : 'Honest Mode: No synthetic floor applied.'}
                         </div>
                       </div>
                     </div>
                   </div>
+
+                  {/* Surrogate Rule Extraction & Hash-Chained Ledger Receipt (if available) */}
+                  {(hiringNvidiaResult.ruleExtraction?.supported || hiringNvidiaResult.ledgerReceipt) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1">
+                      {hiringNvidiaResult.ruleExtraction?.supported && (
+                        <div className="bg-[#07090e] p-3.5 rounded-2xl border border-white/[0.06] space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-200 uppercase text-[10px] tracking-wider">Surrogate Decision-Tree Rules</span>
+                            <span className="text-[10px] font-mono text-emerald-400">Fidelity: {(hiringNvidiaResult.ruleExtraction.surrogate_fidelity * 100).toFixed(0)}%</span>
+                          </div>
+                          <pre className="text-[10px] text-slate-400 font-mono whitespace-pre-wrap leading-relaxed">
+                            {(hiringNvidiaResult.ruleExtraction.rules || []).slice(0, 5).join('\n')}
+                          </pre>
+                        </div>
+                      )}
+                      {hiringNvidiaResult.ledgerReceipt && (
+                        <div className="bg-[#07090e] p-3.5 rounded-2xl border border-white/[0.06] space-y-1.5">
+                          <span className="font-bold text-slate-200 uppercase text-[10px] tracking-wider block">Hash-Chained SQLite Ledger</span>
+                          <p className="text-[10px] text-slate-400 font-mono break-all">Run ID: {hiringNvidiaResult.ledgerReceipt.run_id}</p>
+                          <p className="text-[10px] text-emerald-400 font-mono break-all">SHA-256: {hiringNvidiaResult.ledgerReceipt.entry_hash}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Expandable Grounding Claims Table */}
                   {showGroundingDetails && hiringNvidiaResult.groundingAudit?.testedClaims && (
@@ -2205,24 +2255,54 @@ export default function Home() {
                           <Activity className="w-3.5 h-3.5 text-teal-400" /> Fairness Evaluation
                         </span>
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold font-mono">
-                          INDEX: {lendingNvidiaResult.fairnessIndex?.score ?? 94}/100
+                          DIR: {typeof lendingNvidiaResult.counterfactualTwinTest?.measuredDisparateImpactRatio === 'number'
+                            ? lendingNvidiaResult.counterfactualTwinTest.measuredDisparateImpactRatio
+                            : 'N/M'}
                         </span>
                       </div>
                       <div className="space-y-1.5 text-[11px] text-slate-400">
                         <div>
-                          <span className="text-slate-300 font-medium">Veritas Experimental Index:</span>{' '}
-                          <strong className="text-white font-mono">{lendingNvidiaResult.fairnessIndex?.score ?? 94}/100</strong> (MSME Credit Inclusion Index).
+                          <span className="text-slate-300 font-medium">Disparate Impact Ratio:</span>{' '}
+                          <strong className="text-white font-mono">
+                            {lendingNvidiaResult.counterfactualTwinTest?.measuredDisparateImpactRatio ?? 'Not measurable'}
+                          </strong>
                         </div>
                         <div>
-                          <span className="text-slate-300 font-medium">RBI PSL Alignment:</span>{' '}
+                          <span className="text-slate-300 font-medium">RBI PSL &amp; DTI Alignment:</span>{' '}
                           Objective DTI of <strong className="text-white font-mono">{((lendingApplicant.monthly_obligations_inr / (lendingApplicant.monthly_income_inr || 1)) * 100).toFixed(1)}%</strong> evaluated without postal redlining.
                         </div>
                         <div className="text-[10px] text-slate-500 pt-1 border-t border-white/[0.04]">
-                          Disparate Impact Ratio: <strong className="text-emerald-400 font-mono">{lendingNvidiaResult.fairnessIndex?.disparateImpactRatio || '0.94'}</strong> (Four-Fifths Pass).
+                          {lendingNvidiaResult.pairedStatistics?.p_value !== undefined && lendingNvidiaResult.pairedStatistics?.p_value !== 'Not measurable'
+                            ? `Paired Mean Delta: ${lendingNvidiaResult.pairedStatistics.mean_score_delta} pts (p=${lendingNvidiaResult.pairedStatistics.p_value})`
+                            : 'Honest Mode: Real paired model delta reported.'}
                         </div>
                       </div>
                     </div>
                   </div>
+
+                  {/* Surrogate Rule Extraction & Hash-Chained Ledger Receipt (if available) */}
+                  {(lendingNvidiaResult.ruleExtraction?.supported || lendingNvidiaResult.ledgerReceipt) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1">
+                      {lendingNvidiaResult.ruleExtraction?.supported && (
+                        <div className="bg-[#07090e] p-3.5 rounded-2xl border border-white/[0.06] space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-200 uppercase text-[10px] tracking-wider">Surrogate Decision-Tree Rules</span>
+                            <span className="text-[10px] font-mono text-teal-400">Fidelity: {(lendingNvidiaResult.ruleExtraction.surrogate_fidelity * 100).toFixed(0)}%</span>
+                          </div>
+                          <pre className="text-[10px] text-slate-400 font-mono whitespace-pre-wrap leading-relaxed">
+                            {(lendingNvidiaResult.ruleExtraction.rules || []).slice(0, 5).join('\n')}
+                          </pre>
+                        </div>
+                      )}
+                      {lendingNvidiaResult.ledgerReceipt && (
+                        <div className="bg-[#07090e] p-3.5 rounded-2xl border border-white/[0.06] space-y-1.5">
+                          <span className="font-bold text-slate-200 uppercase text-[10px] tracking-wider block">Hash-Chained SQLite Ledger</span>
+                          <p className="text-[10px] text-slate-400 font-mono break-all">Run ID: {lendingNvidiaResult.ledgerReceipt.run_id}</p>
+                          <p className="text-[10px] text-teal-400 font-mono break-all">SHA-256: {lendingNvidiaResult.ledgerReceipt.entry_hash}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Expandable Grounding Claims Table */}
                   {showGroundingDetails && lendingNvidiaResult.groundingAudit?.testedClaims && (

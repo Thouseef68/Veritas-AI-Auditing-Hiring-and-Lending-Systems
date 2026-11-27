@@ -17,7 +17,7 @@ Automated decision-making systems in recruitment and lending have created unprec
 - **Hiring ATS engines** routinely penalize qualified women returning from maternity or caregiving leaves (career gap haircut) and automatically downgrade applicants graduating from Tier-2 and Tier-3 institutions regardless of actual programming competence.
 - **Credit underwriting models** systematically redline applicants from non-metro postal codes and penalize MSME entrepreneurs and self-employed artisans who lack corporate salary slips despite robust 15–30 day bank cash inflows and impeccable CIBIL discipline.
 
-**Veritas AI** is an independent, legal-grade AI auditor for hiring and lending decisions. Rather than acting as another black-box decision engine, Veritas AI investigates, audits, and stress-tests the AI models making employment and credit determinations.
+**Veritas AI** is an independent, audit-ready AI auditing platform for hiring and lending decisions. Rather than acting as another black-box decision engine, Veritas AI investigates, audits, and stress-tests the AI models making employment and credit determinations via a **Python FastAPI Audit Orchestrator** (`ml_engine/server.py`), **Universal Model Adapters** (`ml_engine/adapters/`), **Surrogate Decision-Tree Rule Extraction**, **Paired Counterfactual Twin Testing**, and a **Hash-Chained SQLite Run Store**.
 
 ---
 
@@ -116,21 +116,28 @@ Veritas AI runs live adversarial counterfactual perturbation tests on every subm
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/<your-username>/Hackathon-DSU.git
-cd Hackathon-DSU
+git clone https://github.com/Thouseef68/Veritas-AI-Auditing-Hiring-and-Lending-Systems.git
+cd Veritas-AI-Auditing-Hiring-and-Lending-Systems
 ```
 
-### 2. Install Web Dependencies
+### 2. Start the Python FastAPI Audit Backend (Recommended)
+```bash
+pip install fastapi uvicorn pyyaml python-multipart scikit-learn scipy pypdf
+uvicorn ml_engine.server:app --host 127.0.0.1 --port 8000
+```
+
+### 3. Install & Run the Next.js Web Frontend
 ```bash
 cd web
 npm install
 ```
 
-### 3. Configure Environment Variables
+### 4. Configure Environment Variables
 Create a `.env.local` file inside the `web/` directory:
 ```env
 # web/.env.local (DO NOT COMMIT THIS FILE TO VERSION CONTROL)
-NVIDIA_NIM_API_KEY=nvapi-your-nvidia-nim-api-key-here
+NVIDIA_API_KEY=nvapi-your-nvidia-nim-api-key-here
+VERITAS_BACKEND_URL=http://127.0.0.1:8000
 ```
 > **Security Note**: `.env.local` is listed in `.gitignore`. Never commit API keys or private tokens to GitHub.
 

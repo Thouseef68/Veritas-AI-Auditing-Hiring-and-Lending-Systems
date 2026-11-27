@@ -4,6 +4,8 @@
 .env.*
 *.env
 nvapi-*
+*.db
+*.sqlite3
 
 # Dependencies
 node_modules/
