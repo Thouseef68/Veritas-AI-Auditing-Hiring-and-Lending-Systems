@@ -7,6 +7,7 @@ Audit Orchestration Engine.
 """
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 from .adapters import (
     LLMAdapter,
@@ -184,23 +185,25 @@ def run_isolated_counterfactuals(
             ),
         ]
 
-    for attr, label, patch in probes:
+    def _run_probe(item):
+        attr, label, patch = item
         probe_profile = dict(safe_profile)
         probe_profile.update(patch)
         res = adapter.decide(probe_profile, domain=domain)
         twin_score = float(res["score"])
         delta = round(twin_score - float(base_score), 2)
-        attributions.append(
-            {
-                "attribute": attr,
-                "label": label,
-                "changed_to": patch[attr],
-                "original_score": base_score,
-                "twin_score": twin_score,
-                "delta": delta,
-                "potential_bias": abs(delta) >= 3.0,
-            }
-        )
+        return {
+            "attribute": attr,
+            "label": label,
+            "changed_to": patch[attr],
+            "original_score": base_score,
+            "twin_score": twin_score,
+            "delta": delta,
+            "potential_bias": abs(delta) >= 3.0,
+        }
+
+    with ThreadPoolExecutor(max_workers=len(probes)) as pool:
+        attributions = list(pool.map(_run_probe, probes))
 
     return attributions
 
@@ -273,15 +276,18 @@ def run_full_audit(
     # 2. Primary Evaluation using SANITIZED safe_profile (P0 #1 fix)
     primary_eval = adapter.decide(safe_profile, domain=domain)
 
-    # 3. Real Counterfactual Twin Evaluation + Isolated One-Variable Attribution (P0 #3 fix)
+    # 3. Real Counterfactual Twin Evaluation + Isolated One-Variable Attribution (in parallel)
     twin_profile = generate_matched_twin(safe_profile, domain=domain)
     if caps.get("counterfactual_testing"):
-        twin_eval = adapter.decide(twin_profile, domain=domain)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f_twin = pool.submit(adapter.decide, twin_profile, domain)
+            f_iso = pool.submit(
+                run_isolated_counterfactuals, adapter, safe_profile, float(primary_eval["score"]), domain
+            )
+            twin_eval = f_twin.result()
+            isolated_attribution = f_iso.result()
         twin_delta = round(float(twin_eval["score"]) - float(primary_eval["score"]), 2)
         abs_delta = round(abs(twin_delta), 2)
-        isolated_attribution = run_isolated_counterfactuals(
-            adapter, safe_profile, float(primary_eval["score"]), domain=domain
-        )
         twin_result: Dict[str, Any] = {
             "supported": True,
             "twin_profile": twin_profile,

@@ -102,7 +102,7 @@ export async function POST(req: Request) {
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 35000);
+    const timeout = setTimeout(() => controller.abort(), 55000);
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (process.env.VERITAS_API_SECRET) {
       headers['X-Veritas-Key'] = process.env.VERITAS_API_SECRET;
