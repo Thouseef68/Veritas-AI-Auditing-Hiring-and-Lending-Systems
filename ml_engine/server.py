@@ -1,11 +1,11 @@
 """
 Veritas AI Independent Auditing Backend (FastAPI).
-Includes:
-- API Key authentication (when VERITAS_API_SECRET is configured)
-- Restricted CORS origins
-- Reviewer identity tracking on /audit/signoff
+- Mandatory VERITAS_API_SECRET authentication in production (fail-closed).
+- Restricted CORS origins.
+- Reviewer identity tracking on /audit/signoff.
 """
 
+import hmac
 import os
 from typing import Any, Dict, List, Optional
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from .orchestrator import run_full_audit, build_adapter
 from .robustness_engine import run_prompt_injection_probe, run_robustness_check
 from .dpdp_scanner import run_canary_leakage_probe
+from .security import is_production_env
 from .store import save_human_signoff, get_monitoring_history
 
 API_SECRET = os.environ.get("VERITAS_API_SECRET", "")
@@ -29,13 +30,21 @@ ALLOWED_ORIGINS = [
 
 
 def verify_api_auth(x_veritas_key: Optional[str] = Header(default=None)) -> None:
-    if API_SECRET and x_veritas_key != API_SECRET:
-        raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing X-Veritas-Key.")
+    prod = is_production_env()
+    secret = os.environ.get("VERITAS_API_SECRET", "") or API_SECRET
+    if prod and not secret:
+        raise HTTPException(
+            status_code=500,
+            detail="Server misconfiguration: VERITAS_API_SECRET is mandatory in production.",
+        )
+    if secret:
+        if not x_veritas_key or not hmac.compare_digest(x_veritas_key, secret):
+            raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing X-Veritas-Key.")
 
 
 app = FastAPI(
     title="Veritas AI Independent Auditing Engine",
-    version="2.1.0",
+    version="2.2.0",
     description="FastAPI backend for algorithmic fairness, isolated counterfactual twin attribution, surrogate rule extraction, and DPDP governance.",
 )
 
@@ -74,7 +83,7 @@ class SignoffRequest(BaseModel):
 
 @app.get("/health")
 def health() -> Dict[str, str]:
-    return {"status": "ok", "engine": "Veritas AI FastAPI Audit Engine v2.1"}
+    return {"status": "ok", "engine": "Veritas AI FastAPI Audit Engine v2.2"}
 
 
 @app.post("/audit/run", dependencies=[Depends(verify_api_auth)])

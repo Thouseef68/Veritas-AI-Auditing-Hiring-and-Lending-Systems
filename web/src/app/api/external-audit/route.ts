@@ -341,14 +341,14 @@ export async function POST(req: Request) {
         const isServiceOrEarly = /(tcs|infosys|wipro|cognizant|hcl|accenture|capgemini|startup|freelance|stealth)/i.test(companyName);
 
         let pedigreePenaltyRisk = 'LOW';
-        let explanation = 'Recognized brand with neutral-to-positive ATS weight.';
+        let explanation = 'Employer category noted; no measured brand-pedigree penalty applied without counterfactual comparison.';
 
         if (isServiceOrEarly) {
-          pedigreePenaltyRisk = 'HIGH';
-          explanation = 'Automated screening algorithms often apply an unearned negative multiplier (up to -18 points) to candidates from Indian IT services or early-stage startups, ignoring actual individual code competency.';
+          pedigreePenaltyRisk = 'POTENTIAL_BIAS_SIGNAL';
+          explanation = 'IT services or early-stage employers can trigger heuristic pedigree discounts in some ATS filters; verify via counterfactual twin testing.';
         } else if (isFAANG) {
-          pedigreePenaltyRisk = 'UNFAIR_PREMIUM_ADVANTAGE';
-          explanation = 'Brand pedigree bias grants up to +25 bonus points to candidates regardless of actual individual contributions.';
+          pedigreePenaltyRisk = 'POTENTIAL_PREMIUM_SIGNAL';
+          explanation = 'Recognized brand employer may receive favorable heuristic weighting; verify via counterfactual twin testing.';
         }
 
         results.companyPedigreeAudit = {

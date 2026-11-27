@@ -173,3 +173,47 @@ def test_yaml_dpdp_scanner_and_grounding_and_hash_chain():
 
     hist = get_monitoring_history()
     assert hist["hash_chain_valid"] is True
+
+
+def test_allowlist_sanitizes_all_fields_and_drops_extra_keys():
+    from ml_engine.orchestrator import sanitize_profile_allowlist
+
+    safe, findings, rules = sanitize_profile_allowlist(
+        {
+            "full_name": "Aditi Sen",
+            "employer": "TCS (PAN: ABCDE1234F)",
+            "notes": "5 years React",
+            "secret_extra_field": "should_be_dropped",
+            "raw_aadhaar": "4829 1928 3819",
+        },
+        domain="hiring",
+    )
+    assert "secret_extra_field" not in safe
+    assert "raw_aadhaar" not in safe
+    assert "ABCDE1234F" not in safe["employer"]
+    assert "[REDACTED_DPDP_PAN_CARD]" in safe["employer"]
+    assert "dpdp_pan_card" in rules
+
+
+def test_fastapi_auth_mandatory_in_production(monkeypatch):
+    from fastapi import HTTPException
+    from ml_engine.server import verify_api_auth
+
+    monkeypatch.setenv("VERITAS_ENV", "production")
+    monkeypatch.delenv("VERITAS_API_SECRET", raising=False)
+    with pytest.raises(HTTPException) as exc500:
+        verify_api_auth(x_veritas_key=None)
+    assert exc500.value.status_code == 500
+
+    monkeypatch.setenv("VERITAS_API_SECRET", "super-secret-token")
+    with pytest.raises(HTTPException) as exc401:
+        verify_api_auth(x_veritas_key="wrong-token")
+    assert exc401.value.status_code == 401
+
+    verify_api_auth(x_veritas_key="super-secret-token")
+
+
+def test_https_required_in_production_for_external_urls():
+    with pytest.raises(ValueError):
+        validate_external_url("http://example.com/api", require_https=True)
+    assert validate_external_url("https://example.com/api", require_https=True) == "https://example.com/api"

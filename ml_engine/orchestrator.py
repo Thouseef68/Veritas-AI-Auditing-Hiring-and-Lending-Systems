@@ -27,6 +27,75 @@ from .rule_extractor import extract_surrogate_rules
 from .store import save_audit_run
 
 
+ALLOWED_HIRING_FIELDS = {
+    "full_name",
+    "gender",
+    "target_role",
+    "years_exp",
+    "career_break_months",
+    "college_tier",
+    "employer",
+    "github",
+    "portfolio",
+    "resume_text",
+    "notes",
+}
+
+ALLOWED_LENDING_FIELDS = {
+    "full_name",
+    "gender",
+    "age",
+    "tier_location",
+    "pin_code",
+    "employment_type",
+    "job_title",
+    "employer",
+    "monthly_income_inr",
+    "annual_income_inr",
+    "monthly_obligations_inr",
+    "loan_amount_inr",
+    "tenor_months",
+    "loan_purpose",
+    "credit_score",
+    "debt_to_income",
+    "statement_text",
+    "notes",
+}
+
+
+def sanitize_profile_allowlist(profile: Dict[str, Any], domain: str) -> tuple[Dict[str, Any], List[Dict[str, Any]], List[str]]:
+    """
+    Explicit allowlist + full-field PII sanitization before any external model call.
+    Drops unallowlisted fields and sanitizes every string field in the allowlist.
+    """
+    allowed = ALLOWED_HIRING_FIELDS if domain == "hiring" else ALLOWED_LENDING_FIELDS
+    safe: Dict[str, Any] = {}
+    all_findings: List[Dict[str, Any]] = []
+    seen_rules: set[str] = set()
+
+    for key in allowed:
+        if key not in profile:
+            continue
+        val = profile[key]
+        if isinstance(val, str):
+            all_findings.extend(scan_text_for_pii(val))
+            clean_val, rules = sanitize_text(val)
+            safe[key] = clean_val
+            seen_rules.update(rules)
+        else:
+            safe[key] = val
+
+    # Ensure canonical text field is populated with sanitized content
+    sanitized_body = safe.get("resume_text") or safe.get("statement_text") or safe.get("notes") or ""
+    safe["notes"] = sanitized_body
+    if domain == "hiring":
+        safe["resume_text"] = sanitized_body
+    else:
+        safe["statement_text"] = sanitized_body
+
+    return safe, all_findings, sorted(seen_rules)
+
+
 def build_adapter(
     adapter_type: str = "llm",
     model_name: Optional[str] = None,
@@ -197,17 +266,9 @@ def run_full_audit(
 
     raw_text = str(profile.get("resume_text") or profile.get("statement_text") or profile.get("notes") or "")
 
-    # 1. TRUE PRE-INFERENCE PRIVACY FIREWALL
-    # Scan raw text locally, sanitize PII, and send ONLY safe_profile to external adapters!
-    pii_findings = scan_text_for_pii(raw_text)
-    sanitized_text, redacted_rule_ids = sanitize_text(raw_text)
-
-    safe_profile = dict(profile)
-    safe_profile["notes"] = sanitized_text
-    if domain == "hiring":
-        safe_profile["resume_text"] = sanitized_text
-    else:
-        safe_profile["statement_text"] = sanitized_text
+    # 1. TRUE PRE-INFERENCE PRIVACY FIREWALL (Allowlist + Full-Profile Sanitization)
+    safe_profile, pii_findings, redacted_rule_ids = sanitize_profile_allowlist(profile, domain=domain)
+    sanitized_text = safe_profile.get("notes", "")
 
     # 2. Primary Evaluation using SANITIZED safe_profile (P0 #1 fix)
     primary_eval = adapter.decide(safe_profile, domain=domain)

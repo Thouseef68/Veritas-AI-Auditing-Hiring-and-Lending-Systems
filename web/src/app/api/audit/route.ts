@@ -136,12 +136,17 @@ export async function POST(req: Request) {
     }
     const flipRate = actualUnpriv.length > 0 ? Number((flipCount / actualUnpriv.length).toFixed(3)) : 0;
 
-    // Pareto Optimal Threshold Sweep
+    // Threshold Sweep (never assume missing ground truth is positive)
+    const sweepHasGroundTruth = records.every(
+      (r: any) =>
+        (r.qualified_merit ?? r.qualified ?? r.merit ?? r.target) !== undefined &&
+        (r.qualified_merit ?? r.qualified ?? r.merit ?? r.target) !== null
+    );
     const sweepSteps = [0.34, 0.38, 0.42, 0.46, 0.50, 0.54, 0.58, 0.62, 0.66, 0.70];
     let bestThreshold = 0.50;
     let bestScore = -999;
     let bestDi = disparateImpactRatio;
-    let bestAcc = 0.75;
+    let bestAcc: number | string = sweepHasGroundTruth ? 0 : 'Not measurable';
 
     const curve = sweepSteps.map(t => {
       let privPos = 0, unprivPos = 0;
@@ -150,9 +155,11 @@ export async function POST(req: Request) {
         let score = r.simulated_model_score ?? r.score ?? (r.credit_score ? r.credit_score / 850 : 0.5);
         if (score > 1.0) score = score / 100.0;
         const pred = score >= t ? 1 : 0;
-        const act = (r.qualified_merit ?? r.qualified ?? 1) ? 1 : 0;
-        if (pred === act) {
-          if (pred === 1) totTp++; else totTn++;
+        if (sweepHasGroundTruth) {
+          const act = (r.qualified_merit ?? r.qualified ?? r.merit ?? r.target) ? 1 : 0;
+          if (pred === act) {
+            if (pred === 1) totTp++; else totTn++;
+          }
         }
         if (String(r[sensitiveAttr]).toLowerCase() === String(privGroup).toLowerCase() && pred === 1) privPos++;
         if (String(r[sensitiveAttr]).toLowerCase() === String(unprivGroup).toLowerCase() && pred === 1) unprivPos++;
@@ -160,10 +167,12 @@ export async function POST(req: Request) {
       const privSr = actualPriv.length > 0 ? privPos / actualPriv.length : 0;
       const unprivSr = actualUnpriv.length > 0 ? unprivPos / actualUnpriv.length : 0;
       const di = privSr > 0 ? Number((unprivSr / privSr).toFixed(3)) : 1.0;
-      const acc = Number(((totTp + totTn) / records.length).toFixed(4));
+      const acc: number | string = sweepHasGroundTruth
+        ? Number(((totTp + totTn) / records.length).toFixed(4))
+        : 'Not measurable';
 
       const fairnessPenalty = Math.max(0, 0.80 - di) * 3.0;
-      const objective = acc - fairnessPenalty;
+      const objective = typeof acc === 'number' ? acc - fairnessPenalty : -fairnessPenalty - Math.abs(t - 0.5);
 
       if (objective > bestScore) {
         bestScore = objective;

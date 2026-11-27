@@ -1,5 +1,5 @@
 """
-Hash-Chained SQLite Run Store & Continuous Monitoring Registry.
+Hash-Chained Audit Ledger Store (PostgreSQL in production via DATABASE_URL, SQLite in local dev).
 Stores audit runs, human sign-offs, and drift metrics with SHA-256 hash chaining.
 """
 
@@ -11,17 +11,82 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
+from .security import is_production_env
+
 DB_PATH = os.path.join(os.path.dirname(__file__), "veritas_audit.db")
 
 
-def _get_conn() -> sqlite3.Connection:
+def _get_database_url() -> str:
+    return os.environ.get("DATABASE_URL", "").strip()
+
+
+def _use_postgres() -> bool:
+    db_url = _get_database_url()
+    if is_production_env() and not db_url:
+        raise RuntimeError(
+            "DATABASE_URL (PostgreSQL) is required in production so audit records are not stored on ephemeral local disk."
+        )
+    return db_url.startswith("postgres://") or db_url.startswith("postgresql://")
+
+
+def _get_pg_conn():
+    import psycopg
+    from psycopg.rows import dict_row
+
+    return psycopg.connect(_get_database_url(), row_factory=dict_row)
+
+
+def _get_sqlite_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def init_db() -> None:
-    conn = _get_conn()
+    if _use_postgres():
+        with _get_pg_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS audit_runs (
+                        id TEXT PRIMARY KEY,
+                        created_at DOUBLE PRECISION NOT NULL,
+                        domain TEXT NOT NULL,
+                        adapter_type TEXT NOT NULL,
+                        model_name TEXT NOT NULL,
+                        applicant_name TEXT,
+                        score DOUBLE PRECISION,
+                        decision TEXT,
+                        disparate_impact_ratio TEXT,
+                        grounding_rate TEXT,
+                        result_json TEXT NOT NULL,
+                        prev_hash TEXT NOT NULL,
+                        entry_hash TEXT NOT NULL
+                    )
+                    """
+                )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS human_signoffs (
+                        id TEXT PRIMARY KEY,
+                        run_id TEXT NOT NULL,
+                        created_at DOUBLE PRECISION NOT NULL,
+                        reviewer_id TEXT NOT NULL,
+                        reviewer_name TEXT NOT NULL,
+                        reviewer_role TEXT NOT NULL,
+                        decision_before TEXT,
+                        decision_after TEXT,
+                        reviewer_action TEXT NOT NULL,
+                        override_reason TEXT,
+                        prev_hash TEXT NOT NULL,
+                        entry_hash TEXT NOT NULL
+                    )
+                    """
+                )
+            conn.commit()
+        return
+
+    conn = _get_sqlite_conn()
     cur = conn.cursor()
     cur.execute(
         """
@@ -60,7 +125,6 @@ def init_db() -> None:
         )
         """
     )
-    # Migrate older schema if needed
     cur.execute("PRAGMA table_info(human_signoffs)")
     existing_cols = {row[1] for row in cur.fetchall()}
     for col, col_def in [
@@ -93,18 +157,40 @@ def save_audit_run(
     result: Dict[str, Any],
 ) -> Dict[str, str]:
     init_db()
-    conn = _get_conn()
-    cur = conn.cursor()
-
-    cur.execute("SELECT entry_hash FROM audit_runs ORDER BY created_at DESC LIMIT 1")
-    row = cur.fetchone()
-    prev_hash = row["entry_hash"] if row else ("0" * 64)
-
     run_id = str(uuid.uuid4())
     created_at = time.time()
     result_json = json.dumps(result, sort_keys=True)
-    entry_hash = _compute_hash(prev_hash, f"{run_id}|{created_at}|{result_json}")
 
+    if _use_postgres():
+        with _get_pg_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT entry_hash FROM audit_runs ORDER BY created_at DESC LIMIT 1")
+                row = cur.fetchone()
+                prev_hash = row["entry_hash"] if row else ("0" * 64)
+                entry_hash = _compute_hash(prev_hash, f"{run_id}|{created_at}|{result_json}")
+                cur.execute(
+                    """
+                    INSERT INTO audit_runs (
+                        id, created_at, domain, adapter_type, model_name,
+                        applicant_name, score, decision, disparate_impact_ratio,
+                        grounding_rate, result_json, prev_hash, entry_hash
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        run_id, created_at, domain, adapter_type, model_name,
+                        applicant_name, score, decision, str(disparate_impact_ratio),
+                        str(grounding_rate), result_json, prev_hash, entry_hash,
+                    ),
+                )
+            conn.commit()
+        return {"run_id": run_id, "prev_hash": prev_hash, "entry_hash": entry_hash, "storage": "postgresql"}
+
+    conn = _get_sqlite_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT entry_hash FROM audit_runs ORDER BY created_at DESC LIMIT 1")
+    row = cur.fetchone()
+    prev_hash = row["entry_hash"] if row else ("0" * 64)
+    entry_hash = _compute_hash(prev_hash, f"{run_id}|{created_at}|{result_json}")
     cur.execute(
         """
         INSERT INTO audit_runs (
@@ -114,24 +200,14 @@ def save_audit_run(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            run_id,
-            created_at,
-            domain,
-            adapter_type,
-            model_name,
-            applicant_name,
-            score,
-            decision,
-            str(disparate_impact_ratio),
-            str(grounding_rate),
-            result_json,
-            prev_hash,
-            entry_hash,
+            run_id, created_at, domain, adapter_type, model_name,
+            applicant_name, score, decision, str(disparate_impact_ratio),
+            str(grounding_rate), result_json, prev_hash, entry_hash,
         ),
     )
     conn.commit()
     conn.close()
-    return {"run_id": run_id, "prev_hash": prev_hash, "entry_hash": entry_hash}
+    return {"run_id": run_id, "prev_hash": prev_hash, "entry_hash": entry_hash, "storage": "sqlite-local"}
 
 
 def save_human_signoff(
@@ -145,43 +221,54 @@ def save_human_signoff(
     decision_after: str = "",
 ) -> Dict[str, Any]:
     init_db()
-    conn = _get_conn()
-    cur = conn.cursor()
-
-    cur.execute("SELECT entry_hash FROM human_signoffs ORDER BY created_at DESC LIMIT 1")
-    row = cur.fetchone()
-    prev_hash = row["entry_hash"] if row else ("0" * 64)
-
     signoff_id = str(uuid.uuid4())
     created_at = time.time()
     payload = f"{signoff_id}|{run_id}|{reviewer_id}|{reviewer_role}|{decision_before}|{decision_after}|{action}|{justification}|{created_at}"
-    entry_hash = _compute_hash(prev_hash, payload)
 
-    cur.execute(
-        """
-        INSERT INTO human_signoffs (
-            id, run_id, created_at, reviewer_id, reviewer_name, reviewer_role,
-            decision_before, decision_after, reviewer_action, override_reason,
-            prev_hash, entry_hash
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            signoff_id,
-            run_id,
-            created_at,
-            reviewer_id,
-            reviewer_name,
-            reviewer_role,
-            decision_before,
-            decision_after,
-            action,
-            justification,
-            prev_hash,
-            entry_hash,
-        ),
-    )
-    conn.commit()
-    conn.close()
+    if _use_postgres():
+        with _get_pg_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT entry_hash FROM human_signoffs ORDER BY created_at DESC LIMIT 1")
+                row = cur.fetchone()
+                prev_hash = row["entry_hash"] if row else ("0" * 64)
+                entry_hash = _compute_hash(prev_hash, payload)
+                cur.execute(
+                    """
+                    INSERT INTO human_signoffs (
+                        id, run_id, created_at, reviewer_id, reviewer_name, reviewer_role,
+                        decision_before, decision_after, reviewer_action, override_reason,
+                        prev_hash, entry_hash
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        signoff_id, run_id, created_at, reviewer_id, reviewer_name, reviewer_role,
+                        decision_before, decision_after, action, justification, prev_hash, entry_hash,
+                    ),
+                )
+            conn.commit()
+    else:
+        conn = _get_sqlite_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT entry_hash FROM human_signoffs ORDER BY created_at DESC LIMIT 1")
+        row = cur.fetchone()
+        prev_hash = row["entry_hash"] if row else ("0" * 64)
+        entry_hash = _compute_hash(prev_hash, payload)
+        cur.execute(
+            """
+            INSERT INTO human_signoffs (
+                id, run_id, created_at, reviewer_id, reviewer_name, reviewer_role,
+                decision_before, decision_after, reviewer_action, override_reason,
+                prev_hash, entry_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                signoff_id, run_id, created_at, reviewer_id, reviewer_name, reviewer_role,
+                decision_before, decision_after, action, justification, prev_hash, entry_hash,
+            ),
+        )
+        conn.commit()
+        conn.close()
+
     return {
         "signoff_id": signoff_id,
         "reviewer_id": reviewer_id,
@@ -197,18 +284,27 @@ def save_human_signoff(
 
 def get_monitoring_history(limit: int = 20) -> Dict[str, Any]:
     init_db()
-    conn = _get_conn()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT id, created_at, domain, adapter_type, model_name, applicant_name, score, decision, disparate_impact_ratio, grounding_rate, prev_hash, entry_hash FROM audit_runs ORDER BY created_at DESC LIMIT ?",
-        (limit,),
-    )
-    rows = [dict(r) for r in cur.fetchall()]
-
-    # Verify hash-chain integrity across all runs
-    cur.execute("SELECT id, created_at, result_json, prev_hash, entry_hash FROM audit_runs ORDER BY created_at ASC")
-    all_rows = cur.fetchall()
-    conn.close()
+    if _use_postgres():
+        with _get_pg_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, created_at, domain, adapter_type, model_name, applicant_name, score, decision, disparate_impact_ratio, grounding_rate, prev_hash, entry_hash FROM audit_runs ORDER BY created_at DESC LIMIT %s",
+                    (limit,),
+                )
+                rows = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT id, created_at, result_json, prev_hash, entry_hash FROM audit_runs ORDER BY created_at ASC")
+                all_rows = cur.fetchall()
+    else:
+        conn = _get_sqlite_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, created_at, domain, adapter_type, model_name, applicant_name, score, decision, disparate_impact_ratio, grounding_rate, prev_hash, entry_hash FROM audit_runs ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.execute("SELECT id, created_at, result_json, prev_hash, entry_hash FROM audit_runs ORDER BY created_at ASC")
+        all_rows = cur.fetchall()
+        conn.close()
 
     chain_valid = True
     expected_prev = "0" * 64
@@ -219,7 +315,6 @@ def get_monitoring_history(limit: int = 20) -> Dict[str, Any]:
             break
         expected_prev = r["entry_hash"]
 
-    # Drift alert if latest DIR < 0.80
     drift_alerts = []
     for r in rows[:5]:
         try:
