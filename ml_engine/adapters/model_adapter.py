@@ -74,11 +74,36 @@ class PlantedBiasModelAdapter(ModelAdapter):
                 },
             }
 
-        # Lending domain
-        income = float(profile.get("monthly_income_inr", 0) or 0)
-        obligations = float(profile.get("monthly_obligations_inr", 0) or 0)
+        # Lending domain - normalize financial inputs
+        income = float(
+            profile.get("monthly_income_inr")
+            or profile.get("monthly_income")
+            or (float(profile.get("annual_income_inr", 0)) / 12 if profile.get("annual_income_inr") else 0)
+            or (float(profile.get("income", 0)) / 12 if float(profile.get("income", 0)) > 200000 else profile.get("income", 0))
+            or 0
+        )
+        obligations = float(
+            profile.get("monthly_obligations_inr")
+            or profile.get("monthly_obligations")
+            or 0
+        )
         cibil = float(profile.get("credit_score", 650) or 650)
-        dti = (obligations / income) if income > 0 else 1.0
+
+        # Normalize DTI
+        if "debt_to_income" in profile and profile.get("debt_to_income") is not None:
+            raw_dti = profile["debt_to_income"]
+            if isinstance(raw_dti, str) and "%" in raw_dti:
+                dti = float(raw_dti.replace("%", "").strip()) / 100.0
+            else:
+                dti = float(raw_dti)
+                if dti > 1.0:
+                    dti = dti / 100.0
+        elif "dti" in profile and profile.get("dti") is not None:
+            dti = float(profile["dti"])
+            if dti > 1.0:
+                dti = dti / 100.0
+        else:
+            dti = (obligations / income) if income > 0 else 0.5
 
         base_score = 35.0
         if cibil >= 750:
@@ -99,7 +124,7 @@ class PlantedBiasModelAdapter(ModelAdapter):
         bias_reasons = []
         penalty = 0.0
         if not self.mitigate:
-            loc = str(profile.get("tier_location", "")).lower()
+            loc = str(profile.get("tier_location") or profile.get("location_tier") or profile.get("location") or "").lower()
             if "rural" in loc or "tier 3" in loc:
                 penalty += self.planted_bias_points
                 bias_reasons.append("Non-metro rural/Tier-3 PIN risk penalty applied")

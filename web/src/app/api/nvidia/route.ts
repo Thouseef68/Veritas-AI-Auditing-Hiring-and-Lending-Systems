@@ -84,6 +84,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Candidate / applicant profile required' }, { status: 400 });
     }
 
+    if (domain === 'hiring') {
+      const resume = String(candidate.resume_text || candidate.notes || '').trim();
+      if (!resume) {
+        return NextResponse.json(
+          { error: 'Resume text cannot be empty or whitespace-only for hiring audits.' },
+          { status: 400 }
+        );
+      }
+    } else {
+      const statement = String(candidate.statement_text || candidate.notes || '').trim();
+      const income = candidate.monthly_income_inr || candidate.annual_income_inr || candidate.income || candidate.monthly_income;
+      if (!statement && !income) {
+        return NextResponse.json(
+          { error: 'Financial statement or income details cannot be empty for lending audits.' },
+          { status: 400 }
+        );
+      }
+    }
+
     if (!consentConfirmed) {
       return NextResponse.json(
         { error: 'DPDP Act Section 6 explicit consent confirmation is required before running an audit.' },

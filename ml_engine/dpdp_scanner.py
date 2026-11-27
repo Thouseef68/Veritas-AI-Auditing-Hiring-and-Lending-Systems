@@ -20,7 +20,8 @@ def load_rules() -> List[Dict[str, Any]]:
 
 def _mask_match(value: str, mask_type: str) -> str:
     if mask_type == "aadhaar" and len(value) >= 8:
-        return value[:4] + " **** " + value[-4:]
+        val_clean = re.sub(r"\s+", " ", value.strip())
+        return val_clean[:4] + " **** " + val_clean[-4:]
     if mask_type == "pan" and len(value) >= 4:
         return value[:2] + "***" + value[-2:]
     if mask_type == "phone" and len(value) >= 4:
@@ -28,6 +29,13 @@ def _mask_match(value: str, mask_type: str) -> str:
     if mask_type == "email" and "@" in value:
         user, dom = value.split("@", 1)
         return user[:2] + "***@" + dom
+    if mask_type == "bank_account":
+        digits = re.findall(r"\d", value)
+        if len(digits) >= 4:
+            return "******" + "".join(digits[-4:])
+        return "[REDACTED_BANK_ACCOUNT]"
+    if mask_type == "address":
+        return "[REDACTED_RESIDENTIAL_ADDRESS]"
     return value
 
 

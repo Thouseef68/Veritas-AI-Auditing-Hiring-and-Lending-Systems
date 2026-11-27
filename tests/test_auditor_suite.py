@@ -217,3 +217,139 @@ def test_https_required_in_production_for_external_urls():
     with pytest.raises(ValueError):
         validate_external_url("http://example.com/api", require_https=True)
     assert validate_external_url("https://example.com/api", require_https=True) == "https://example.com/api"
+
+
+def test_llm_adapter_strict_parsing_and_no_silent_default():
+    from ml_engine.adapters.llm_adapter import LLMAdapter
+
+    adapter = LLMAdapter(api_key="mock-key")
+
+    # 1. Plain text with markdown bolding
+    out1 = adapter._parse_structured_output(
+        "**SCORE:** 78\n**DECISION:** SHORTLIST\nWHY_SHOULD_HIRE:\n- Strong PyTorch & XGBoost\nREASONING: Candidate verified.",
+        domain="hiring",
+    )
+    assert out1 is not None
+    assert out1["score"] == 78
+    assert out1["decision"] == "SHORTLIST"
+    assert "Candidate verified." in out1["rationale"]
+
+    # 2. JSON structured output
+    out2 = adapter._parse_structured_output(
+        '{"score": 85, "decision": "SHORTLIST", "rationale": "High candidate match.", "why_positive": ["Strong research"]}',
+        domain="hiring",
+    )
+    assert out2 is not None
+    assert out2["score"] == 85
+    assert out2["decision"] == "SHORTLIST"
+
+    # 3. Accidental reasoning exposure stripped
+    out3 = adapter._parse_structured_output(
+        "<think>I could consider giving this person 75, but let's check.</think>\nSCORE: 75\nDECISION: SHORTLIST\nREASONING: Demonstrated ML projects.",
+        domain="hiring",
+    )
+    assert out3 is not None
+    assert out3["score"] == 75
+    assert "<think>" not in out3["rationale"]
+
+    # 4. Malformed output with no score returns None (triggers retry, never defaults to 50!)
+    out4 = adapter._parse_structured_output("Here is my evaluation. The candidate is very nice.", domain="hiring")
+    assert out4 is None
+
+
+def test_dpdp_privacy_all_types_detected_and_redacted():
+    synthetic_pii = (
+        "Candidate: Test User. Aadhaar: 1234 5678 9012. PAN: ABCDE1234F. "
+        "Email: test.user@example.com. Phone: +91-9876543210. "
+        "Address: 42 MG Road, Bengaluru 560001. Bank Account: 98765432101234."
+    )
+    findings = scan_text_for_pii(synthetic_pii)
+    rule_ids = {f["rule_id"] for f in findings}
+    assert "dpdp_aadhaar_uid" in rule_ids
+    assert "dpdp_pan_card" in rule_ids
+    assert "dpdp_email_address" in rule_ids
+    assert "dpdp_phone_number" in rule_ids
+    assert "dpdp_address" in rule_ids
+    assert "dpdp_bank_account" in rule_ids
+
+    sanitized, applied = sanitize_text(synthetic_pii)
+    assert "1234 5678 9012" not in sanitized
+    assert "ABCDE1234F" not in sanitized
+    assert "test.user@example.com" not in sanitized
+    assert "9876543210" not in sanitized
+    assert "98765432101234" not in sanitized
+    assert "[REDACTED_DPDP_AADHAAR_UID]" in sanitized
+    assert "[REDACTED_DPDP_PAN_CARD]" in sanitized
+    assert "[REDACTED_DPDP_BANK_ACCOUNT]" in sanitized
+
+
+def test_grounding_detects_negation_contradiction_and_unsupported_credentials():
+    evidence_text = "Built XGBoost fraud engine with 99.28% recall and FastAPI backend. BCA student at DSU."
+    base_profile = {"full_name": "Test Candidate", "resume_text": evidence_text}
+
+    # 1. Contradiction
+    g_contra = check_output_grounding(
+        "Candidate has no experience with XGBoost or FastAPI.",
+        [],
+        ["No experience with XGBoost"],
+        evidence_text,
+        base_profile,
+    )
+    assert g_contra["grounding_rate"] == 0.0
+    assert g_contra["hallucinations_count"] >= 1
+    assert any(c["status"] == "CONTRADICTION" for c in g_contra["tested_claims"])
+
+    # 2. Fabricated / Unsupported credentials
+    g_fab = check_output_grounding(
+        "Candidate holds a PhD from MIT and led a 50-person team at Meta.",
+        ["PhD from MIT", "50-person team at Meta"],
+        [],
+        evidence_text,
+        base_profile,
+    )
+    assert g_fab["grounding_rate"] == 0.0
+    assert g_fab["hallucinations_count"] >= 1
+
+    # 3. Supported claim
+    g_sup = check_output_grounding(
+        "Candidate built an XGBoost fraud engine and FastAPI backend.",
+        ["XGBoost fraud engine", "FastAPI backend"],
+        [],
+        evidence_text,
+        base_profile,
+    )
+    assert g_sup["grounding_rate"] == 100.0
+
+
+def test_empty_resume_rejected_at_orchestrator_level():
+    with pytest.raises(ValueError) as exc:
+        run_full_audit(
+            profile={"full_name": "Applicant", "resume_text": "   "},
+            domain="hiring",
+            adapter_type="ml_model",
+            consent_confirmed=True,
+        )
+    assert "cannot be empty" in str(exc.value)
+
+
+def test_lending_field_mapping_normalizes_income_and_dti():
+    from ml_engine.adapters.model_adapter import PlantedBiasModelAdapter
+
+    adapter = PlantedBiasModelAdapter()
+    lending_profile = {
+        "full_name": "Synthetic Borrower",
+        "credit_score": 740,
+        "income": 850000,
+        "loan_amount": 500000,
+        "dti": 0.28,
+        "employment_type": "Salaried",
+        "location_tier": "Metro",
+        "pin_code": "560001",
+        "statement_text": "Salaried applicant, credit score 740, income 8.5L, DTI 28%.",
+    }
+    res = adapter.decide(lending_profile, domain="lending")
+    assert res["score"] >= 65.0
+    assert res["decision"] == "APPROVE"
+    assert "DTI 28.0%" in res["rationale"]
+    assert "Monthly Income Rs. 70833" in res["rationale"]
+

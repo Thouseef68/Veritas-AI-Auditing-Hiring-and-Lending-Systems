@@ -1,7 +1,7 @@
 rules:
   - id: dpdp_aadhaar_uid
     type: Aadhaar-like 12-Digit Identifier Detected
-    pattern: '\b[2-9]{1}[0-9]{3}\s?[0-9]{4}\s?[0-9]{4}\b'
+    pattern: '(?:\b[1-9][0-9]{3}[\s\-]?[0-9]{4}[\s\-]?[0-9]{4}\b|\b[0-9]{4}[\s\-][0-9]{4}[\s\-][0-9]{4}\b)'
     clause: DPDP Act 2023 - Section 8(5) (Security Safeguards)
     title: Sensitive identifier detected in processing context; verify safeguards and necessity
     severity: CRITICAL
@@ -34,6 +34,24 @@ rules:
     severity: LOW
     mask_type: email
     fix: Pseudonymize email addresses during blind screening.
+
+  - id: dpdp_bank_account
+    type: Bank Account Identifier Detected
+    pattern: '(?i)(?:bank\s*(?:account|a/?c)|account(?:\s*no\.?)?|a/?c\s*(?:no\.?)?)\s*[:\-]?\s*[0-9]{9,18}\b'
+    clause: DPDP Act 2023 - Section 8(5) & RBI Digital Lending Directions
+    title: Financial account identifier detected in processing context
+    severity: CRITICAL
+    mask_type: bank_account
+    fix: Tokenize or strip bank account numbers prior to external model inference.
+
+  - id: dpdp_address
+    type: Residential / Physical Address Detected
+    pattern: '(?i)(?:address|residence|residing at|flat\s*no\.?|house\s*no\.?|h\.no\.?)\s*[:\-]?\s*[\w\d\s,/-]{5,70}(?:\b\d{6}\b)?|\b\d{1,4}[,\s]+[\w\s,/.-]+(?:road|rd|street|lane|nagar|colony|layout|apartments|apt|floor|cross|main)[\w\s,/.-]*(?:\b\d{6}\b)?'
+    clause: DPDP Act 2023 - Section 8(1) (Data Minimization)
+    title: Physical address identifier detected; verify necessity for blind screening
+    severity: MEDIUM
+    mask_type: address
+    fix: Redact physical residential address details prior to automated evaluation.
 
   - id: dpdp_marital_proxy
     type: Marital / Family Status Attribute Detected

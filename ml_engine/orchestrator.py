@@ -47,18 +47,24 @@ ALLOWED_LENDING_FIELDS = {
     "gender",
     "age",
     "tier_location",
+    "location",
+    "location_tier",
     "pin_code",
     "employment_type",
     "job_title",
     "employer",
+    "income",
+    "monthly_income",
     "monthly_income_inr",
     "annual_income_inr",
+    "monthly_obligations",
     "monthly_obligations_inr",
     "loan_amount_inr",
     "tenor_months",
     "loan_purpose",
     "credit_score",
     "debt_to_income",
+    "dti",
     "statement_text",
     "notes",
 }
@@ -85,6 +91,36 @@ def sanitize_profile_allowlist(profile: Dict[str, Any], domain: str) -> tuple[Di
             seen_rules.update(rules)
         else:
             safe[key] = val
+
+    if domain == "lending":
+        # Financial input normalization
+        inc = (
+            safe.get("monthly_income_inr")
+            or safe.get("monthly_income")
+            or (float(safe.get("annual_income_inr", 0)) / 12 if safe.get("annual_income_inr") else 0)
+            or (float(safe.get("income", 0)) / 12 if float(safe.get("income", 0)) > 200000 else safe.get("income", 0))
+            or 0
+        )
+        safe["monthly_income_inr"] = float(inc)
+
+        ob = float(safe.get("monthly_obligations_inr") or safe.get("monthly_obligations") or 0)
+        safe["monthly_obligations_inr"] = ob
+
+        if "debt_to_income" in safe and safe["debt_to_income"] is not None:
+            raw_dti = safe["debt_to_income"]
+            if isinstance(raw_dti, str) and "%" in raw_dti:
+                safe["debt_to_income"] = float(raw_dti.replace("%", "").strip()) / 100.0
+            else:
+                dti_val = float(raw_dti)
+                safe["debt_to_income"] = dti_val / 100.0 if dti_val > 1.0 else dti_val
+        elif "dti" in safe and safe["dti"] is not None:
+            dti_val = float(safe["dti"])
+            safe["debt_to_income"] = dti_val / 100.0 if dti_val > 1.0 else dti_val
+        else:
+            safe["debt_to_income"] = round(ob / float(inc), 3) if float(inc) > 0 else 0.5
+
+        loc = safe.get("tier_location") or safe.get("location_tier") or safe.get("location") or "Tier 2 (Semi-urban)"
+        safe["tier_location"] = loc
 
     # Ensure canonical text field is populated with sanitized content
     sanitized_body = safe.get("resume_text") or safe.get("statement_text") or safe.get("notes") or ""
@@ -266,6 +302,16 @@ def run_full_audit(
         mitigate=mitigate,
     )
     caps = adapter.capabilities()
+
+    if domain == "hiring":
+        raw_resume = str(profile.get("resume_text") or profile.get("notes") or "").strip()
+        if not raw_resume:
+            raise ValueError("Resume text cannot be empty or whitespace-only for hiring audits.")
+    else:
+        raw_statement = str(profile.get("statement_text") or profile.get("notes") or "").strip()
+        income_check = profile.get("monthly_income_inr") or profile.get("annual_income_inr") or profile.get("income") or profile.get("monthly_income")
+        if not raw_statement and not income_check:
+            raise ValueError("Financial statement or income details cannot be empty for lending audits.")
 
     raw_text = str(profile.get("resume_text") or profile.get("statement_text") or profile.get("notes") or "")
 
