@@ -1,6 +1,9 @@
 """
-Hash-Chained Audit Ledger Store (PostgreSQL in production via DATABASE_URL, SQLite in local dev).
-Stores audit runs, human sign-offs, and drift metrics with SHA-256 hash chaining.
+Hash-Chained Audit Ledger Store.
+Supports:
+1. PostgreSQL via DATABASE_URL (psycopg)
+2. Supabase PostgreSQL via SUPABASE_URL + SUPABASE_KEY (HTTPS PostgREST)
+3. Local SQLite for development & pytest (disabled in production)
 """
 
 import hashlib
@@ -8,6 +11,7 @@ import json
 import os
 import sqlite3
 import time
+import urllib.request
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -20,13 +24,39 @@ def _get_database_url() -> str:
     return os.environ.get("DATABASE_URL", "").strip()
 
 
-def _use_postgres() -> bool:
+def _get_supabase_config() -> tuple[str, str]:
+    return os.environ.get("SUPABASE_URL", "").strip().rstrip("/"), os.environ.get("SUPABASE_KEY", "").strip()
+
+
+def _storage_mode() -> str:
     db_url = _get_database_url()
-    if is_production_env() and not db_url:
+    if db_url.startswith("postgres://") or db_url.startswith("postgresql://"):
+        return "postgres"
+    sb_url, sb_key = _get_supabase_config()
+    if sb_url and sb_key:
+        return "supabase"
+    if is_production_env():
         raise RuntimeError(
-            "DATABASE_URL (PostgreSQL) is required in production so audit records are not stored on ephemeral local disk."
+            "Persistent storage required in production: configure DATABASE_URL or SUPABASE_URL + SUPABASE_KEY."
         )
-    return db_url.startswith("postgres://") or db_url.startswith("postgresql://")
+    return "sqlite"
+
+
+def _sb_request(path: str, method: str = "GET", payload: Optional[Dict[str, Any]] = None) -> Any:
+    sb_url, sb_key = _get_supabase_config()
+    url = f"{sb_url}/rest/v1/{path}"
+    headers = {
+        "apikey": sb_key,
+        "Authorization": f"Bearer {sb_key}",
+        "Content-Type": "application/json",
+    }
+    if method == "POST":
+        headers["Prefer"] = "return=representation"
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        body = resp.read().decode("utf-8")
+        return json.loads(body) if body else []
 
 
 def _get_pg_conn():
@@ -43,7 +73,11 @@ def _get_sqlite_conn() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    if _use_postgres():
+    mode = _storage_mode()
+    if mode == "supabase":
+        # Tables are managed via Supabase migrations
+        return
+    if mode == "postgres":
         with _get_pg_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -157,11 +191,37 @@ def save_audit_run(
     result: Dict[str, Any],
 ) -> Dict[str, str]:
     init_db()
+    mode = _storage_mode()
     run_id = str(uuid.uuid4())
     created_at = time.time()
     result_json = json.dumps(result, sort_keys=True)
 
-    if _use_postgres():
+    if mode == "supabase":
+        rows = _sb_request("audit_runs?select=entry_hash&order=created_at.desc&limit=1")
+        prev_hash = rows[0]["entry_hash"] if rows else ("0" * 64)
+        entry_hash = _compute_hash(prev_hash, f"{run_id}|{created_at}|{result_json}")
+        _sb_request(
+            "audit_runs",
+            method="POST",
+            payload={
+                "id": run_id,
+                "created_at": created_at,
+                "domain": domain,
+                "adapter_type": adapter_type,
+                "model_name": model_name,
+                "applicant_name": applicant_name,
+                "score": score,
+                "decision": decision,
+                "disparate_impact_ratio": str(disparate_impact_ratio),
+                "grounding_rate": str(grounding_rate),
+                "result_json": result_json,
+                "prev_hash": prev_hash,
+                "entry_hash": entry_hash,
+            },
+        )
+        return {"run_id": run_id, "prev_hash": prev_hash, "entry_hash": entry_hash, "storage": "supabase-postgres"}
+
+    if mode == "postgres":
         with _get_pg_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT entry_hash FROM audit_runs ORDER BY created_at DESC LIMIT 1")
@@ -221,11 +281,34 @@ def save_human_signoff(
     decision_after: str = "",
 ) -> Dict[str, Any]:
     init_db()
+    mode = _storage_mode()
     signoff_id = str(uuid.uuid4())
     created_at = time.time()
     payload = f"{signoff_id}|{run_id}|{reviewer_id}|{reviewer_role}|{decision_before}|{decision_after}|{action}|{justification}|{created_at}"
 
-    if _use_postgres():
+    if mode == "supabase":
+        rows = _sb_request("human_signoffs?select=entry_hash&order=created_at.desc&limit=1")
+        prev_hash = rows[0]["entry_hash"] if rows else ("0" * 64)
+        entry_hash = _compute_hash(prev_hash, payload)
+        _sb_request(
+            "human_signoffs",
+            method="POST",
+            payload={
+                "id": signoff_id,
+                "run_id": run_id,
+                "created_at": created_at,
+                "reviewer_id": reviewer_id,
+                "reviewer_name": reviewer_name,
+                "reviewer_role": reviewer_role,
+                "decision_before": decision_before,
+                "decision_after": decision_after,
+                "reviewer_action": action,
+                "override_reason": justification,
+                "prev_hash": prev_hash,
+                "entry_hash": entry_hash,
+            },
+        )
+    elif mode == "postgres":
         with _get_pg_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT entry_hash FROM human_signoffs ORDER BY created_at DESC LIMIT 1")
@@ -284,7 +367,13 @@ def save_human_signoff(
 
 def get_monitoring_history(limit: int = 20) -> Dict[str, Any]:
     init_db()
-    if _use_postgres():
+    mode = _storage_mode()
+    if mode == "supabase":
+        rows = _sb_request(
+            f"audit_runs?select=id,created_at,domain,adapter_type,model_name,applicant_name,score,decision,disparate_impact_ratio,grounding_rate,prev_hash,entry_hash&order=created_at.desc&limit={limit}"
+        )
+        all_rows = _sb_request("audit_runs?select=id,created_at,result_json,prev_hash,entry_hash&order=created_at.asc")
+    elif mode == "postgres":
         with _get_pg_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
