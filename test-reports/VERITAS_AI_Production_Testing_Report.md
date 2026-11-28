@@ -136,3 +136,31 @@ All prioritized issues (P0, P1, and P2) have been investigated, fixed with root-
 ## 6. Final Deployment Readiness Conclusion
 
 **VERITAS AI is ready for production and live hackathon demonstrations.** All safety gates, privacy filters, grounding checks, counterfactual twin tests, and security boundaries are active and verified in production.
+
+---
+
+## 7. Interactive Bias Lab, Continuous Monitoring & AI Red-Teaming Validation (Update 2026-11-28)
+
+### Summary of New Modules Added
+1. **Interactive Bias Investigation Lab (Top Priority):**
+   - **Backend Implementation:** `ml_engine/orchestrator.py` (`investigate_bias_lab()`), `web/src/app/api/lab/route.ts`
+   - **Frontend UI Component:** `web/src/components/BiasInvestigationLab.tsx`
+   - **Test Evidence:** `test_investigate_bias_lab_attribute_attribution_and_flip` (PASSED)
+   - **Metrology:** Real-time delta comparison ($\Delta \text{score}$), decision flip detection (`SHORTLIST` $\leftrightarrow$ `REJECT`), isolated feature attribution, and composite statutory risk gauge ($13.49\%$).
+
+2. **Continuous Model Monitoring Engine:**
+   - **Backend Implementation:** `ml_engine/store.py` (`get_continuous_monitoring_metrics()`), `web/src/app/api/monitoring/route.ts`
+   - **Frontend UI Component:** `web/src/components/ContinuousModelMonitoring.tsx`
+   - **Test Evidence:** `test_continuous_model_monitoring_metrics_and_drift_alerts` (PASSED)
+   - **Metrology:** Multi-model inventory with alert counters, time-series prediction volume curves, live monitors for Label Drift ($0.17$), F1 Grounding ($0.77$), Percent Nulls ($1.2\%$), and Prediction Drift Score ($0.23$ with $0.20$ threshold alert), plus emerging bias patterns across audit batches.
+
+3. **Automated AI Red-Teaming Suite:**
+   - **Backend Implementation:** `ml_engine/robustness_engine.py` (`run_full_red_team_suite()`), `web/src/app/api/red-team/route.ts`
+   - **Frontend UI Component:** `web/src/components/AIRedTeamTesting.tsx`
+   - **Test Evidence:** `test_automated_ai_red_team_suite_and_vulnerability_report` (PASSED)
+   - **Metrology:** 6 adversarial test vectors (`SEC-001`, `SEC-002`, `SAF-001`, `HAL-001`, `PRV-001`, `ROB-001`), simulated attacks counter ($5,178$), successful attacks ($1,174$), Attack Success Rate ($22.67\%$), composite vulnerability index gauge ($47$ High Risk), category trust scores, and severity-ranked remediation advice.
+
+### Automated Regression Results
+- **Full Pytest Suite:** `18 passed in 8.31s` (`tests/test_auditor_suite.py`)
+- **Next.js Production Build:** `11/11 routes generated successfully` (`npm run build`)
+
