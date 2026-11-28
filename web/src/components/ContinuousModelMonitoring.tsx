@@ -19,7 +19,15 @@ import {
   Plus
 } from 'lucide-react';
 
-export default function ContinuousModelMonitoring() {
+interface MonitoringProps {
+  activeEvaluation?: any;
+  onBackToAuditor?: () => void;
+}
+
+export default function ContinuousModelMonitoring({
+  activeEvaluation,
+  onBackToAuditor
+}: MonitoringProps) {
   const [loading, setLoading] = useState(false);
   const [monitoringData, setMonitoringData] = useState<any>(null);
   const [selectedModel, setSelectedModel] = useState<string>("techhire-screening-v2");
@@ -137,6 +145,33 @@ export default function ContinuousModelMonitoring() {
           </button>
         </div>
       </div>
+
+      {/* Live Stream Event Banner if Active Evaluation Passed */}
+      {activeEvaluation && (
+        <div className="mb-6 p-4 rounded-xl bg-indigo-950/40 border border-indigo-500/40 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <div>
+              <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider block">
+                Live Audit Event Ingested Into Telemetry
+              </span>
+              <p className="text-xs text-zinc-300">
+                Evaluation Score: <strong className="text-white">{activeEvaluation.score || activeEvaluation.originalEvaluation?.score} pts</strong> | 
+                Decision: <strong className="text-white">{activeEvaluation.decision || activeEvaluation.originalEvaluation?.decision}</strong> | 
+                Timestamp: <span className="font-mono text-zinc-400">Just Now (Batch Synced)</span>
+              </p>
+            </div>
+          </div>
+          {onBackToAuditor && (
+            <button
+              onClick={onBackToAuditor}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 border border-indigo-500/40 transition"
+            >
+              ← Back to Hiring/Lending Auditor
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Main Layout: Left Models List + Right Dashboard */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">

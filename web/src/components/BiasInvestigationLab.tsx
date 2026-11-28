@@ -22,9 +22,26 @@ import {
   Calendar
 } from 'lucide-react';
 
-export default function BiasInvestigationLab() {
-  const [domain, setDomain] = useState<'hiring' | 'lending'>('hiring');
+interface BiasLabProps {
+  initialDomain?: 'hiring' | 'lending';
+  activeCandidate?: any;
+  activeEvaluation?: any;
+  onBackToAuditor?: () => void;
+}
+
+export default function BiasInvestigationLab({
+  initialDomain = 'hiring',
+  activeCandidate,
+  activeEvaluation,
+  onBackToAuditor
+}: BiasLabProps) {
+  const [domain, setDomain] = useState<'hiring' | 'lending'>(initialDomain);
   const [loading, setLoading] = useState(false);
+
+  // Sync domain if prop changes
+  useEffect(() => {
+    if (initialDomain) setDomain(initialDomain);
+  }, [initialDomain]);
 
   // Base Profile (Reference Baseline)
   const [baseProfile, setBaseProfile] = useState({
@@ -49,6 +66,69 @@ export default function BiasInvestigationLab() {
     annual_income: 750000,
     dti_ratio: 0.38
   });
+
+  // Automatically initialize from live candidate if provided
+  useEffect(() => {
+    if (activeCandidate) {
+      if (domain === 'hiring') {
+        const candidateGap = Number(activeCandidate.career_break_months ?? 8);
+        const candidateExp = Number(activeCandidate.years_exp ?? 5);
+        const candidateGender = activeCandidate.gender || 'Female';
+        const candidateTier = activeCandidate.college_tier?.includes('1') ? 'Tier 1' : activeCandidate.college_tier?.includes('3') ? 'Tier 3' : 'Tier 2';
+
+        setBaseProfile({
+          gender: 'Male',
+          college_tier: 'Tier 1',
+          career_gap_months: 0,
+          location_tier: 'Tier 1 (Metro)',
+          experience_years: candidateExp,
+          skills_score: 85,
+          annual_income: 1200000,
+          dti_ratio: 0.25
+        });
+
+        setModProfile({
+          gender: candidateGender,
+          college_tier: candidateTier,
+          career_gap_months: candidateGap,
+          location_tier: 'Tier 2 (City)',
+          experience_years: candidateExp,
+          skills_score: 85,
+          annual_income: 1200000,
+          dti_ratio: 0.25
+        });
+      } else {
+        const income = Number(activeCandidate.annual_income_inr ?? 780000);
+        const monthlyOblig = Number(activeCandidate.monthly_obligations_inr ?? 12000);
+        const monthlyInc = Number(activeCandidate.monthly_income_inr ?? 65000);
+        const dti = monthlyInc > 0 ? monthlyOblig / monthlyInc : 0.35;
+        const candidateGender = activeCandidate.gender || 'Female';
+        const candidateLoc = activeCandidate.tier_location?.includes('3') ? 'Tier 3 (Rural)' : 'Tier 2 (City)';
+
+        setBaseProfile({
+          gender: 'Male',
+          college_tier: 'Tier 1',
+          career_gap_months: 0,
+          location_tier: 'Tier 1 (Metro)',
+          experience_years: 5,
+          skills_score: 85,
+          annual_income: 1500000,
+          dti_ratio: 0.20
+        });
+
+        setModProfile({
+          gender: candidateGender,
+          college_tier: 'Tier 2',
+          career_gap_months: 0,
+          location_tier: candidateLoc,
+          experience_years: 5,
+          skills_score: 85,
+          annual_income: income,
+          dti_ratio: Number(dti.toFixed(2))
+        });
+      }
+    }
+  }, [activeCandidate, domain]);
 
   const [investigationData, setInvestigationData] = useState<any>(null);
 
@@ -155,6 +235,33 @@ export default function BiasInvestigationLab() {
           </button>
         </div>
       </div>
+
+      {/* Live Candidate Sync Banner */}
+      {activeCandidate && (
+        <div className="mb-6 p-4 rounded-xl bg-blue-950/40 border border-blue-500/40 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <div>
+              <span className="text-xs font-bold text-blue-300 uppercase tracking-wider block">
+                Synchronized From Live Evaluation
+              </span>
+              <p className="text-xs text-zinc-300">
+                Audited Profile: <strong className="text-white">{activeCandidate.full_name}</strong> ({activeCandidate.target_role || activeCandidate.job_title || 'Applicant'}) | 
+                College: <strong className="text-white">{activeCandidate.college_tier || 'Standard'}</strong> | 
+                Gap: <strong className="text-white">{activeCandidate.career_break_months || 0} mo</strong>
+              </p>
+            </div>
+          </div>
+          {onBackToAuditor && (
+            <button
+              onClick={onBackToAuditor}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600 text-blue-200 border border-blue-500/40 transition"
+            >
+              ← Back to Hiring/Lending Auditor
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Decision Flip Banner */}
       {comparison.decision_flipped && (

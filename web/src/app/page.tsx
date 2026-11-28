@@ -39,8 +39,8 @@ import ContinuousModelMonitoring from '@/components/ContinuousModelMonitoring';
 import AIRedTeamTesting from '@/components/AIRedTeamTesting';
 
 export default function Home() {
-  // Top-level workspace navigation mode
-  const [activeMode, setActiveMode] = useState<'auditor' | 'lab' | 'monitoring' | 'redteam'>('lab');
+  // Top-level workspace navigation mode: default to 'auditor' so hiring & lending are immediately active
+  const [activeMode, setActiveMode] = useState<'auditor' | 'lab' | 'monitoring' | 'redteam'>('auditor');
   // Domain selection: 'hiring' or 'lending' - completely separated workflows
   const [domain, setDomain] = useState<'hiring' | 'lending'>('hiring');
 
@@ -978,7 +978,12 @@ export default function Home() {
         {/* ========================================================= */}
         {activeMode === 'lab' && (
           <div className="animate-fadeIn">
-            <BiasInvestigationLab />
+            <BiasInvestigationLab 
+              initialDomain={domain}
+              activeCandidate={domain === 'hiring' ? hiringApplicant : lendingApplicant}
+              activeEvaluation={domain === 'hiring' ? hiringNvidiaResult : lendingNvidiaResult}
+              onBackToAuditor={() => setActiveMode('auditor')}
+            />
           </div>
         )}
 
@@ -987,7 +992,10 @@ export default function Home() {
         {/* ========================================================= */}
         {activeMode === 'monitoring' && (
           <div className="animate-fadeIn">
-            <ContinuousModelMonitoring />
+            <ContinuousModelMonitoring 
+              activeEvaluation={domain === 'hiring' ? hiringNvidiaResult : lendingNvidiaResult}
+              onBackToAuditor={() => setActiveMode('auditor')}
+            />
           </div>
         )}
 
@@ -996,7 +1004,11 @@ export default function Home() {
         {/* ========================================================= */}
         {activeMode === 'redteam' && (
           <div className="animate-fadeIn">
-            <AIRedTeamTesting />
+            <AIRedTeamTesting 
+              activeCandidate={domain === 'hiring' ? hiringApplicant : lendingApplicant}
+              activeEvaluation={domain === 'hiring' ? hiringNvidiaResult : lendingNvidiaResult}
+              onBackToAuditor={() => setActiveMode('auditor')}
+            />
           </div>
         )}
 
@@ -1302,6 +1314,42 @@ export default function Home() {
                     <Download className="w-3.5 h-3.5 text-blue-400" />
                     Download Executive PDF Report
                   </button>
+                </div>
+
+                {/* ADVANCED MODULE SHORTCUTS BAR */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-teal-500/10 border border-white/[0.12] flex flex-wrap items-center justify-between gap-3 shadow-lg">
+                  <div>
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      Take Action On This Candidate In Specialized Modules:
+                    </span>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Investigate counterfactual attribute sensitivity, register in live model telemetry, or run adversarial probes.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setActiveMode('lab')}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                      <span>Bias Lab Sandbox</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveMode('monitoring')}
+                      className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      <span>Continuous Monitoring</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveMode('redteam')}
+                      className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                    >
+                      <Flame className="w-3.5 h-3.5" />
+                      <span>AI Red-Teaming Probes</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Score & Verdict Banner */}
@@ -2165,6 +2213,42 @@ export default function Home() {
                     <Download className="w-3.5 h-3.5 text-teal-400" />
                     Download Executive PDF Report
                   </button>
+                </div>
+
+                {/* ADVANCED MODULE SHORTCUTS BAR */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-teal-500/10 border border-white/[0.12] flex flex-wrap items-center justify-between gap-3 shadow-lg">
+                  <div>
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      Take Action On This Credit Application In Specialized Modules:
+                    </span>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Investigate counterfactual financial sensitivity, register in underwriting drift telemetry, or run adversarial probes.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setActiveMode('lab')}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                      <span>Bias Lab Sandbox</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveMode('monitoring')}
+                      className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      <span>Continuous Monitoring</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveMode('redteam')}
+                      className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                    >
+                      <Flame className="w-3.5 h-3.5" />
+                      <span>AI Red-Teaming Probes</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Score & Verdict Banner */}

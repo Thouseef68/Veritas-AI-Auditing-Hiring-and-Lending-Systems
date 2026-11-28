@@ -19,7 +19,17 @@ import {
   Sparkles
 } from 'lucide-react';
 
-export default function AIRedTeamTesting() {
+interface RedTeamProps {
+  activeCandidate?: any;
+  activeEvaluation?: any;
+  onBackToAuditor?: () => void;
+}
+
+export default function AIRedTeamTesting({
+  activeCandidate,
+  activeEvaluation,
+  onBackToAuditor
+}: RedTeamProps) {
   const [loading, setLoading] = useState(false);
   const [redTeamData, setRedTeamData] = useState<any>(null);
   const [selectedTarget, setSelectedTarget] = useState<string>("Default / Candidate Evaluator");
@@ -33,7 +43,8 @@ export default function AIRedTeamTesting() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           domain: 'hiring',
-          model_target: selectedTarget
+          model_target: selectedTarget,
+          candidate_profile: activeCandidate || null
         })
       });
       if (res.ok) {
@@ -117,6 +128,33 @@ export default function AIRedTeamTesting() {
           </button>
         </div>
       </div>
+
+      {/* Live Candidate Target Banner if passed */}
+      {activeCandidate && (
+        <div className="mb-6 p-4 rounded-xl bg-teal-950/40 border border-teal-500/40 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <div>
+              <span className="text-xs font-bold text-teal-300 uppercase tracking-wider block">
+                Targeting Live Candidate Profile For Adversarial Probing
+              </span>
+              <p className="text-xs text-zinc-300">
+                Target: <strong className="text-white">{activeCandidate.full_name}</strong> | 
+                Role: <strong className="text-white">{activeCandidate.target_role || activeCandidate.job_title || 'Applicant'}</strong> | 
+                Vector Defense Mode: <span className="font-mono text-emerald-400">Strict Delimiter & DPDP Firewall</span>
+              </p>
+            </div>
+          </div>
+          {onBackToAuditor && (
+            <button
+              onClick={onBackToAuditor}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-teal-600/30 hover:bg-teal-600 text-teal-200 border border-teal-500/40 transition"
+            >
+              ← Back to Hiring/Lending Auditor
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Overview 3-Box Row Matching Reference Image 3 */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
