@@ -1,5 +1,12 @@
 # Veritas AI: Auditing Hiring and Lending Systems
 
+**Team**: Auronex (Team 29)  
+**Track**: Track B: Trust, Safety and Responsible AI  
+**Problem Statement**: #7 – Responsible AI Auditor for Hiring and Lending  
+**Live Application**: [https://veritas-ai-auditor.vercel.app](https://veritas-ai-auditor.vercel.app)  
+**FastAPI Backend**: [https://veritas-ai-backend-thouseef68s-projects.vercel.app](https://veritas-ai-backend-thouseef68s-projects.vercel.app)  
+
+
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.4-black?logo=next.js)](https://nextjs.org/)
 [![NVIDIA NIM](https://img.shields.io/badge/NVIDIA%20NIM-Nemotron%203.5%2030B-76B900?logo=nvidia)](https://build.nvidia.com/)
 [![DPDP Act 2023](https://img.shields.io/badge/India%20DPDP%20Act-2023%20Aligned-008080)](#statutory-privacy-firewall)
