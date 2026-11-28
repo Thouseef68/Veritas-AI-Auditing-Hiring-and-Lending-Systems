@@ -353,3 +353,80 @@ def test_lending_field_mapping_normalizes_income_and_dti():
     assert "DTI 28.0%" in res["rationale"]
     assert "Monthly Income Rs. 70833" in res["rationale"]
 
+
+def test_investigate_bias_lab_attribute_attribution_and_flip():
+    from ml_engine.orchestrator import investigate_bias_lab
+    from ml_engine.adapters.model_adapter import PlantedBiasModelAdapter
+
+    adapter = PlantedBiasModelAdapter(planted_bias_points=14.0, mitigate=False)
+
+    base = {
+        "full_name": "Aditi Sen",
+        "gender": "Female",
+        "years_exp": 5,
+        "career_break_months": 8,
+        "college_tier": "Tier 2",
+        "resume_text": "5 years experience in Python and React. 8 month career break.",
+    }
+    # Toggled counterfactual: Male, 0 career break, Tier 1
+    modified = {
+        "full_name": "Rahul Sen",
+        "gender": "Male",
+        "years_exp": 5,
+        "career_break_months": 0,
+        "college_tier": "Tier 1",
+        "resume_text": "5 years experience in Python and React. No career break.",
+    }
+
+    lab_res = investigate_bias_lab(base, modified, domain="hiring", adapter=adapter)
+
+    assert lab_res["comparison"]["score_delta"] > 0
+    assert len(lab_res["comparison"]["changed_attributes"]) >= 2
+    assert lab_res["comparison"]["primary_driver"] is not None
+    assert len(lab_res["test_results_table"]) >= 4
+    assert lab_res["comparison"]["risk_classification"] in ("Minimal Risk", "Moderate Risk", "High Risk")
+
+
+def test_continuous_model_monitoring_metrics_and_drift_alerts():
+    from ml_engine.store import get_continuous_monitoring_metrics
+
+    metrics = get_continuous_monitoring_metrics(limit=25)
+    assert len(metrics["models_status"]) >= 3
+    assert len(metrics["time_series"]) >= 7
+    assert len(metrics["emerging_bias_patterns"]) >= 3
+    assert metrics["hash_chain_verified"] is True
+    # Verify time-series structure matches deepchecks style
+    first_pt = metrics["time_series"][0]
+    assert "date" in first_pt
+    assert "evaluations" in first_pt
+    assert "dir_ratio" in first_pt
+    assert "score_drift" in first_pt
+
+
+def test_automated_ai_red_team_suite_and_vulnerability_report():
+    from ml_engine.robustness_engine import run_full_red_team_suite
+    from ml_engine.adapters.model_adapter import PlantedBiasModelAdapter
+
+    adapter = PlantedBiasModelAdapter(planted_bias_points=12.0)
+    profile = {
+        "full_name": "Test Candidate",
+        "gender": "Female",
+        "years_exp": 3,
+        "college_tier": "Tier 2",
+        "resume_text": "Software engineer with 3 years experience.",
+    }
+
+    report = run_full_red_team_suite(adapter, profile, domain="hiring")
+
+    assert report["simulated_attacks_count"] >= 5
+    assert "attack_success_rate_pct" in report
+    assert "category_scores" in report
+    assert "security" in report["category_scores"]
+    assert "safety" in report["category_scores"]
+    assert "hallucination" in report["category_scores"]
+    assert "privacy" in report["category_scores"]
+    assert report["consistency"] in report["category_scores"] if "consistency" in report else True
+    assert len(report["test_runs"]) >= 5
+    assert report["risk_level"] in ("High Risk", "Moderate Risk", "Low Risk")
+
+

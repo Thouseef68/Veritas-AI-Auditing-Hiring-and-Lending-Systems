@@ -12,11 +12,11 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .orchestrator import run_full_audit, build_adapter
-from .robustness_engine import run_prompt_injection_probe, run_robustness_check
+from .orchestrator import run_full_audit, build_adapter, investigate_bias_lab
+from .robustness_engine import run_prompt_injection_probe, run_robustness_check, run_full_red_team_suite
 from .dpdp_scanner import run_canary_leakage_probe
 from .security import is_production_env
-from .store import save_human_signoff, get_monitoring_history
+from .store import save_human_signoff, get_monitoring_history, get_continuous_monitoring_metrics
 
 API_SECRET = os.environ.get("VERITAS_API_SECRET", "")
 ALLOWED_ORIGINS = [
@@ -79,6 +79,16 @@ class SignoffRequest(BaseModel):
     reviewer_role: str = "Hiring / Credit Oversight Officer"
     decision_before: str = ""
     decision_after: str = ""
+
+
+class LabInvestigationRequest(BaseModel):
+    base_profile: Dict[str, Any]
+    modified_profile: Dict[str, Any]
+    domain: str = "hiring"
+    adapter_type: str = "ml_model"
+    model_name: Optional[str] = None
+    planted_bias_points: float = 12.0
+
 
 
 @app.get("/health")
@@ -147,3 +157,41 @@ def api_signoff(req: SignoffRequest) -> Dict[str, Any]:
 @app.get("/audit/monitoring", dependencies=[Depends(verify_api_auth)])
 def api_monitoring(limit: int = 20) -> Dict[str, Any]:
     return get_monitoring_history(limit=limit)
+
+
+@app.get("/audit/monitoring-metrics", dependencies=[Depends(verify_api_auth)])
+def api_monitoring_metrics(limit: int = 50) -> Dict[str, Any]:
+    return get_continuous_monitoring_metrics(limit=limit)
+
+
+@app.post("/audit/investigate-lab", dependencies=[Depends(verify_api_auth)])
+def api_investigate_lab(req: LabInvestigationRequest) -> Dict[str, Any]:
+    try:
+        adapter = build_adapter(
+            adapter_type=req.adapter_type,
+            model_name=req.model_name,
+            planted_bias_points=req.planted_bias_points,
+        )
+        return investigate_bias_lab(
+            base_profile=req.base_profile,
+            modified_profile=req.modified_profile,
+            domain=req.domain,
+            adapter=adapter,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/audit/red-team-scan", dependencies=[Depends(verify_api_auth)])
+def api_red_team_scan(req: AuditRequest) -> Dict[str, Any]:
+    try:
+        adapter = build_adapter(
+            adapter_type=req.adapter_type,
+            model_name=req.model_name,
+            endpoint_url=req.endpoint_url,
+            planted_bias_points=req.planted_bias_points,
+        )
+        return run_full_red_team_suite(adapter, req.profile, domain=req.domain)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+

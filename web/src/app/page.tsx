@@ -29,10 +29,18 @@ import {
   HelpCircle,
   Sliders,
   Wallet,
-  Activity
+  Activity,
+  Flame,
+  Radio,
+  SlidersHorizontal
 } from 'lucide-react';
+import BiasInvestigationLab from '@/components/BiasInvestigationLab';
+import ContinuousModelMonitoring from '@/components/ContinuousModelMonitoring';
+import AIRedTeamTesting from '@/components/AIRedTeamTesting';
 
 export default function Home() {
+  // Top-level workspace navigation mode
+  const [activeMode, setActiveMode] = useState<'auditor' | 'lab' | 'monitoring' | 'redteam'>('lab');
   // Domain selection: 'hiring' or 'lending' - completely separated workflows
   const [domain, setDomain] = useState<'hiring' | 'lending'>('hiring');
 
@@ -863,32 +871,86 @@ export default function Home() {
             </div>
           </div>
 
-          {/* TWO DEDICATED DOMAIN TABS */}
-          <div className="flex items-center bg-[#101422] p-1 rounded-full border border-white/[0.08]">
+          {/* TOP LEVEL SUITE MODE SELECTOR */}
+          <div className="flex items-center bg-[#101422] p-1 rounded-full border border-white/[0.12] shadow-inner">
             <button
-              onClick={() => setDomain('hiring')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
-                domain === 'hiring'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
+              onClick={() => setActiveMode('lab')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
+                activeMode === 'lab'
+                  ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Briefcase className="w-3.5 h-3.5" />
-              <span>Hiring &amp; Talent Audit</span>
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Bias Lab</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-black/30 font-bold uppercase tracking-wider">Top Priority</span>
             </button>
 
             <button
-              onClick={() => setDomain('lending')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
-                domain === 'lending'
-                  ? 'bg-teal-600 text-white shadow-md shadow-teal-500/25'
+              onClick={() => setActiveMode('monitoring')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+                activeMode === 'monitoring'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Landmark className="w-3.5 h-3.5" />
-              <span>Lending &amp; Credit Underwriting</span>
+              <Activity className="w-3.5 h-3.5" />
+              <span>Continuous Monitoring</span>
+            </button>
+
+            <button
+              onClick={() => setActiveMode('redteam')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+                activeMode === 'redteam'
+                  ? 'bg-teal-600 text-white shadow-md shadow-teal-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5" />
+              <span>AI Red-Teaming</span>
+            </button>
+
+            <button
+              onClick={() => setActiveMode('auditor')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+                activeMode === 'auditor'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Full Auditor</span>
             </button>
           </div>
+
+          {/* TWO DEDICATED DOMAIN TABS (Shown when in Auditor mode) */}
+          {activeMode === 'auditor' && (
+            <div className="flex items-center bg-[#101422] p-1 rounded-full border border-white/[0.08]">
+              <button
+                onClick={() => setDomain('hiring')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+                  domain === 'hiring'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Briefcase className="w-3.5 h-3.5" />
+                <span>Hiring</span>
+              </button>
+
+              <button
+                onClick={() => setDomain('lending')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+                  domain === 'lending'
+                    ? 'bg-teal-600 text-white shadow-md shadow-teal-500/25'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Landmark className="w-3.5 h-3.5" />
+                <span>Lending</span>
+              </button>
+            </div>
+          )}
 
           {/* UNIVERSAL MODEL ADAPTER SELECTOR */}
           <div className="hidden lg:flex items-center gap-2 bg-[#101422] px-3 py-1 rounded-full border border-white/[0.08] text-xs">
@@ -911,6 +973,38 @@ export default function Home() {
       {/* ========================================================= */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
         
+        {/* ========================================================= */}
+        {/* MODE 1: BIAS INVESTIGATION LAB (TOP PRIORITY) */}
+        {/* ========================================================= */}
+        {activeMode === 'lab' && (
+          <div className="animate-fadeIn">
+            <BiasInvestigationLab />
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* MODE 2: CONTINUOUS MODEL MONITORING */}
+        {/* ========================================================= */}
+        {activeMode === 'monitoring' && (
+          <div className="animate-fadeIn">
+            <ContinuousModelMonitoring />
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* MODE 3: AI RED-TEAMING TESTING */}
+        {/* ========================================================= */}
+        {activeMode === 'redteam' && (
+          <div className="animate-fadeIn">
+            <AIRedTeamTesting />
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* MODE 4: FULL GOVERNANCE AUDITOR WORKSPACE */}
+        {/* ========================================================= */}
+        {activeMode === 'auditor' && (
+          <>
         {/* ========================================================= */}
         {/* TAB 1: HIRING & TALENT AUDIT WORKFLOW */}
         {/* ========================================================= */}
@@ -2574,6 +2668,8 @@ export default function Home() {
               </div>
             )}
           </div>
+        )}
+          </>
         )}
 
       </main>
